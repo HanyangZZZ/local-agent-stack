@@ -105,6 +105,15 @@ async fn prepare_harness_profile(state: State<'_, AppState>) -> Result<ActionRes
         .map_err(|error| error.to_string())
 }
 
+#[tauri::command]
+async fn install_harness_companion(state: State<'_, AppState>) -> Result<ActionResult, String> {
+    state
+        .0
+        .install_harness_companion()
+        .await
+        .map_err(|error| error.to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let supervisor = tauri::async_runtime::block_on(StackSupervisor::discover())
@@ -122,6 +131,7 @@ pub fn run() {
             unload_model,
             delete_model,
             prepare_harness_profile,
+            install_harness_companion,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Local Agent Stack");

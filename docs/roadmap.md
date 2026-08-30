@@ -17,7 +17,7 @@
 
 - [x] Dedicated managed Harness profile.
 - [x] Transactional profile bootstrap with Harness-native validation and cleanup.
-- Prebuilt Harness companion bundle.
+- [x] Prebuilt, versioned Harness companion bundle with one-click installation.
 - Version compatibility manifest and upgrade warnings.
 - Guided first-run setup.
 

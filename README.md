@@ -8,6 +8,7 @@ The initial Windows release manages:
 
 - Ollama health, installed models, running models, VRAM use, downloads and unloads.
 - DeepSeek Harness health and a dedicated, app-managed launch process.
+- An update-safe Harness profile and optional `/local-stack` companion command.
 - Local environment diagnostics and editable runtime configuration.
 - An embedded Harness workspace that remains separate from the control plane.
 
@@ -77,6 +78,15 @@ The app stores its machine-local configuration outside the repository:
 Defaults are `http://127.0.0.1:11434` for Ollama and
 `http://127.0.0.1:3000` for Harness. Commands and arguments can be changed in
 the Settings panel.
+
+The managed Harness workflow is available from the Harness service card:
+
+1. **Prepare profile** clones and validates an isolated profile without
+   changing the stock `web` profile.
+2. **Install companion** adds the versioned read-only bundle from the matching
+   GitHub release and validates the composition again.
+3. Start Harness from the control center and use `/local-stack` inside Harness
+   to view runtime and GPU-memory status.
 
 ## License
 

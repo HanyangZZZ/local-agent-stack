@@ -1,0 +1,37 @@
+{
+  "name": "@local-agent-stack/harness-companion",
+  "version": "0.1.0-alpha.2",
+  "description": "Thin DeepSeek Harness bridge for Local Agent Stack",
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "index.js",
+    "cordis.patch.yml",
+    "README.md"
+  ],
+  "scripts": {
+    "test": "node --test"
+  },
+  "license": "Apache-2.0",
+  "publishConfig": {
+    "access": "public"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": ">=4 <5",
+    "@deepseek-ai/dsh-commands": ">=0.1.1-rc.2 <0.2"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
+

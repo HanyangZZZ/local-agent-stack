@@ -7,7 +7,7 @@
     "dev": "pnpm --filter @local-agent-stack/desktop tauri dev",
     "build": "pnpm --filter @local-agent-stack/desktop tauri build",
     "check": "pnpm --filter @local-agent-stack/desktop check",
-    "test": "cargo test --workspace"
+    "test": "pnpm --filter @local-agent-stack/harness-companion test && cargo test --workspace"
   },
   "packageManager": "pnpm@11.19.0"
 }

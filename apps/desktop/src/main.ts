@@ -80,6 +80,7 @@ function serviceCard(service: ServiceSnapshot): string {
       <button class="secondary service-action" data-action="restart" data-service="${service.kind}" ${!canStop ? "disabled" : ""}>Restart</button>
       <button class="danger service-action" data-action="stop" data-service="${service.kind}" ${!canStop ? "disabled" : ""}>Stop</button>
       ${service.kind === "harness" ? '<button class="secondary" id="prepare-profile">Prepare profile</button>' : ""}
+      ${service.kind === "harness" ? '<button class="secondary" id="install-companion">Install companion</button>' : ""}
     </div>
   </article>`;
 }
@@ -108,6 +109,9 @@ function render(): void {
   document.querySelectorAll<HTMLButtonElement>(".model-action").forEach((button) => button.addEventListener("click", () => modelAction(button)));
   document.querySelector<HTMLButtonElement>("#prepare-profile")?.addEventListener("click", () => {
     void runAction(() => invoke<ActionResult>("prepare_harness_profile"));
+  });
+  document.querySelector<HTMLButtonElement>("#install-companion")?.addEventListener("click", () => {
+    void runAction(() => invoke<ActionResult>("install_harness_companion"));
   });
   updateWorkspace();
 }

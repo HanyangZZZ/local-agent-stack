@@ -22,6 +22,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm check
+      - run: pnpm --filter @local-agent-stack/harness-companion test
       - run: pnpm --filter @local-agent-stack/desktop build
 
   core:
@@ -46,4 +47,3 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - run: cargo check --workspace
-

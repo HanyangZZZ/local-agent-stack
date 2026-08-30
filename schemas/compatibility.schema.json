@@ -15,7 +15,14 @@
         "deepseekHarness": { "type": "array", "items": { "type": "string" } }
       }
     },
+    "companion": {
+      "type": "object",
+      "required": ["version", "url"],
+      "properties": {
+        "version": { "type": "string" },
+        "url": { "type": "string", "format": "uri" }
+      }
+    },
     "notes": { "type": "string" }
   }
 }
-

@@ -19,6 +19,8 @@ use crate::{
     ServiceState, StackConfig, StackError, StackSnapshot, inspect_environment,
 };
 
+const HARNESS_COMPANION_URL: &str = "https://github.com/HanyangZZZ/local-agent-stack/releases/download/v0.1.0-alpha.2/local-agent-stack-harness-companion-0.1.0-alpha.2.tgz";
+
 #[derive(Clone)]
 pub struct StackSupervisor {
     store: ConfigStore,
@@ -300,6 +302,59 @@ impl StackSupervisor {
         self.store.save(&config).await?;
         *self.config.write().await = config;
         Ok(ActionResult::success(validation_message))
+    }
+
+    pub async fn install_harness_companion(&self) -> Result<ActionResult> {
+        let config = self.config().await;
+        validate_profile_name(&config.harness_profile)?;
+        let home = harness_home(&config)?;
+        let profile = home.join("profiles").join(&config.harness_profile);
+        if !profile.is_dir() {
+            return Err(StackError::Config(
+                "prepare the managed Harness profile before installing its companion".into(),
+            ));
+        }
+
+        let args = vec![
+            "plugin".into(),
+            "--profile".into(),
+            config.harness_profile.clone(),
+            "add".into(),
+            HARNESS_COMPANION_URL.into(),
+        ];
+        let (executable, args) = resolve_launch(
+            ServiceKind::Harness,
+            config.harness.command.as_deref(),
+            &args,
+        )?;
+        let mut command = platform_command(&executable, &args);
+        command
+            .env("DSH_HOME", &home)
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+        #[cfg(windows)]
+        command.creation_flags(0x0800_0000);
+
+        let output = timeout(Duration::from_secs(180), command.output())
+            .await
+            .map_err(|_| StackError::Config("Harness companion installation timed out".into()))??;
+        if !output.status.success() {
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(StackError::Config(format!(
+                "Harness companion installation failed: {} {}",
+                stdout.trim(),
+                stderr.trim()
+            )));
+        }
+
+        self.validate_harness_profile(&config, &home, &config.harness_profile)
+            .await?;
+        Ok(ActionResult::success(format!(
+            "Installed and validated the Harness companion in {}",
+            config.harness_profile
+        )))
     }
 
     async fn managed_processes(&self) -> HashMap<ServiceKind, u32> {

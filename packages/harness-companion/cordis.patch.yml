@@ -1,0 +1,7 @@
+- insert:
+    - id: local-agent-stack-companion
+      name: '@local-agent-stack/harness-companion'
+      config:
+        controlUrl: 'http://127.0.0.1:32145'
+        ollamaUrl: 'http://127.0.0.1:11434'
+
