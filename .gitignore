@@ -1,0 +1,11 @@
+target/
+node_modules/
+.pnpm-store/
+dist/
+gen/
+*.log
+*.pdb
+*.user
+.DS_Store
+.idea/
+.vscode/

@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://localagentstack.dev/schemas/stack.schema.json",
+  "title": "Local Agent Stack configuration",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["ollama", "harness", "harnessProfile"],
+  "properties": {
+    "ollama": { "$ref": "#/$defs/service" },
+    "harness": { "$ref": "#/$defs/service" },
+    "harnessProfile": { "type": "string", "minLength": 1 }
+  },
+  "$defs": {
+    "service": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["url", "args"],
+      "properties": {
+        "url": { "type": "string", "format": "uri" },
+        "command": { "type": ["string", "null"] },
+        "args": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  }
+}
+

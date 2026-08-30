@@ -1,0 +1,20 @@
+[package]
+name = "local-agent-stack-desktop"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lib]
+name = "local_agent_stack_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+local-stack-core = { path = "../../../crates/local-stack-core" }
+serde.workspace = true
+tauri = { version = "2", features = [] }
+tokio.workspace = true
+

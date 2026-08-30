@@ -1,0 +1,11 @@
+{
+  "$schema": "./schemas/compatibility.schema.json",
+  "manifestVersion": 1,
+  "desktopVersion": "0.1.0",
+  "tested": {
+    "ollama": [],
+    "deepseekHarness": []
+  },
+  "notes": "Version ranges are populated only after automated integration tests pass."
+}
+

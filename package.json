@@ -1,0 +1,13 @@
+{
+  "name": "local-agent-stack",
+  "version": "0.1.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "scripts": {
+    "dev": "pnpm --filter @local-agent-stack/desktop tauri dev",
+    "build": "pnpm --filter @local-agent-stack/desktop tauri build",
+    "check": "pnpm --filter @local-agent-stack/desktop check",
+    "test": "cargo test --workspace"
+  },
+  "packageManager": "pnpm@11.19.0"
+}

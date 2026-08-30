@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Local Agent Stack compatibility manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["manifestVersion", "desktopVersion", "tested"],
+  "properties": {
+    "manifestVersion": { "type": "integer", "minimum": 1 },
+    "desktopVersion": { "type": "string" },
+    "tested": {
+      "type": "object",
+      "required": ["ollama", "deepseekHarness"],
+      "properties": {
+        "ollama": { "type": "array", "items": { "type": "string" } },
+        "deepseekHarness": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "notes": { "type": "string" }
+  }
+}
+
