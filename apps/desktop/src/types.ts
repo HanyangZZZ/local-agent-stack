@@ -31,7 +31,26 @@ export interface StackSnapshot {
   harness: ServiceSnapshot;
   installedModels: InstalledModel[];
   runningModels: RunningModel[];
+  environment: EnvironmentSnapshot;
   configPath: string;
+}
+
+export interface EnvironmentSnapshot {
+  operatingSystem: string;
+  architecture: string;
+  nodePath?: string;
+  gitPath?: string;
+  ollamaPath?: string;
+  harnessPath?: string;
+  gpus: GpuSnapshot[];
+}
+
+export interface GpuSnapshot {
+  name: string;
+  driverVersion: string;
+  memoryTotalMib: number;
+  memoryUsedMib: number;
+  memoryFreeMib: number;
 }
 
 export interface ServiceConfig {
@@ -50,4 +69,3 @@ export interface ActionResult {
   ok: boolean;
   message: string;
 }
-

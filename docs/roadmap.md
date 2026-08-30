@@ -9,7 +9,7 @@
 - [x] Managed Ollama and Harness child-process start/stop/restart.
 - [x] Embedded Harness workspace.
 - [ ] Streaming model-pull progress.
-- [ ] NVIDIA driver and GPU diagnostics.
+- [x] NVIDIA driver and GPU diagnostics.
 - [ ] Redacted diagnostic bundle export.
 - [ ] Signed Windows installer.
 
@@ -34,4 +34,3 @@
 - Community adapter SDK with signed metadata.
 - Import/exportable stack presets.
 - Headless CLI and remote management over an explicitly enabled secure channel.
-

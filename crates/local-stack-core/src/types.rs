@@ -63,7 +63,30 @@ pub struct StackSnapshot {
     pub harness: ServiceSnapshot,
     pub installed_models: Vec<InstalledModel>,
     pub running_models: Vec<RunningModel>,
+    pub environment: EnvironmentSnapshot,
     pub config_path: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EnvironmentSnapshot {
+    pub operating_system: String,
+    pub architecture: String,
+    pub node_path: Option<String>,
+    pub git_path: Option<String>,
+    pub ollama_path: Option<String>,
+    pub harness_path: Option<String>,
+    pub gpus: Vec<GpuSnapshot>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GpuSnapshot {
+    pub name: String,
+    pub driver_version: String,
+    pub memory_total_mib: u64,
+    pub memory_used_mib: u64,
+    pub memory_free_mib: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

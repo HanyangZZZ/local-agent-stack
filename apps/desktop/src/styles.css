@@ -30,6 +30,10 @@ button.ghost { background: transparent; border: 0; }
 .notice.error { color: #ffadad; background: #281516; border: 1px solid #633034; }
 .hidden { display: none !important; }
 .service-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.environment-strip { display: grid; grid-template-columns: .7fr 1.4fr .8fr .7fr 1.1fr; gap: 1px; margin-bottom: 16px; overflow: hidden; border: 1px solid #29313a; border-radius: 13px; background: #29313a; }
+.environment-strip > div { min-width: 0; padding: 13px 15px; display: flex; flex-direction: column; gap: 4px; background: #11161c; }
+.environment-strip strong { overflow: hidden; color: #cfd7e0; font-size: 11px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+.env-label { color: #667380; font-size: 8px; font-weight: 900; letter-spacing: .12em; }
 .service-card, .panel { background: linear-gradient(145deg, rgba(25,31,38,.96), rgba(16,20,25,.97)); border: 1px solid #29313a; border-radius: 16px; box-shadow: 0 18px 50px rgba(0,0,0,.15); }
 .service-card { padding: 22px; }
 .service-title { display: grid; grid-template-columns: auto 1fr auto; gap: 13px; align-items: center; }
@@ -77,4 +81,3 @@ dialog label { display: grid; gap: 6px; color: #abb5c0; font-size: 11px; font-we
 .skeleton { height: 220px; border-radius: 16px; background: linear-gradient(90deg,#151a20,#202730,#151a20); background-size: 200%; animation: pulse 1.4s infinite; }
 @keyframes pulse { to { background-position: -200% 0; } }
 @media (max-width: 1000px) { .service-grid { grid-template-columns: 1fr; } .topbar { grid-template-columns: 1fr auto; } nav { display: none; } .model-row { grid-template-columns: 1fr auto; } .model-runtime { display: none; } }
-

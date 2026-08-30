@@ -9,7 +9,7 @@ use tokio::{
 
 use crate::{
     ActionResult, ConfigStore, OllamaClient, Result, ServiceKind, ServiceSnapshot, ServiceState,
-    StackConfig, StackError, StackSnapshot,
+    StackConfig, StackError, StackSnapshot, inspect_environment,
 };
 
 #[derive(Clone)]
@@ -71,6 +71,7 @@ impl StackSupervisor {
         } else {
             Vec::new()
         };
+        let environment = inspect_environment().await;
 
         Ok(StackSnapshot {
             ollama: ServiceSnapshot {
@@ -101,6 +102,7 @@ impl StackSupervisor {
             },
             installed_models,
             running_models,
+            environment,
             config_path: self.store.path().display().to_string(),
         })
     }

@@ -29,6 +29,7 @@ app.innerHTML = `
         <div class="hero-actions"><button class="secondary" id="refresh-button">Refresh</button><button class="primary" id="launch-button">Open Harness</button></div>
       </div>
       <div id="notice" class="notice hidden"></div>
+      <div class="environment-strip" id="environment-strip"><span>Inspecting local environment…</span></div>
       <div class="service-grid" id="service-grid"><div class="skeleton"></div><div class="skeleton"></div></div>
       <section class="panel">
         <div class="panel-heading"><div><p class="eyebrow">MODEL LIBRARY</p><h2>Ollama models</h2></div><form id="pull-form"><input id="model-name" placeholder="e.g. qwen3:8b" autocomplete="off"><button class="primary" type="submit">Pull model</button></form></div>
@@ -84,6 +85,13 @@ function render(): void {
   if (!snapshot) return;
   $("#service-grid").innerHTML = serviceCard(snapshot.ollama) + serviceCard(snapshot.harness);
   $("#config-path").textContent = `Config: ${snapshot.configPath}`;
+  const gpu = snapshot.environment.gpus[0];
+  $("#environment-strip").innerHTML = `
+    <div><span class="env-label">SYSTEM</span><strong>${snapshot.environment.operatingSystem} · ${snapshot.environment.architecture}</strong></div>
+    <div><span class="env-label">GPU</span><strong>${gpu ? gpu.name : "No NVIDIA GPU detected"}</strong></div>
+    <div><span class="env-label">VRAM</span><strong>${gpu ? `${(gpu.memoryUsedMib / 1024).toFixed(1)} / ${(gpu.memoryTotalMib / 1024).toFixed(1)} GB` : "—"}</strong></div>
+    <div><span class="env-label">DRIVER</span><strong>${gpu?.driverVersion ?? "—"}</strong></div>
+    <div><span class="env-label">TOOLS</span><strong>${[snapshot.environment.ollamaPath && "Ollama", snapshot.environment.harnessPath && "Harness", snapshot.environment.nodePath && "Node", snapshot.environment.gitPath && "Git"].filter(Boolean).join(" · ") || "None detected"}</strong></div>`;
 
   const running = new Map(snapshot.runningModels.map((model) => [model.name, model]));
   $("#models").innerHTML = snapshot.installedModels.length
@@ -209,4 +217,3 @@ $("#settings-form").addEventListener("submit", async (event) => {
 
 void refresh();
 window.setInterval(() => { if (!busy) void refresh(); }, 10000);
-
