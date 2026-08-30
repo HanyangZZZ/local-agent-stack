@@ -47,6 +47,7 @@ app.innerHTML = `
       <label>Ollama executable<input id="ollama-command" placeholder="Auto-detect"></label>
       <label>Harness URL<input id="harness-url" required></label>
       <label>Harness executable<input id="harness-command" placeholder="Auto-detect dsh"></label>
+      <label>Harness home<input id="harness-home" placeholder="Auto-detect ~/.dsh"></label>
       <label>Harness arguments<input id="harness-args" placeholder="web --port 3000"></label>
       <label>Managed profile<input id="harness-profile" required></label>
       <p class="hint">Version 0.1 accepts loopback URLs only. Arguments are separated by spaces; quoted argument editing is planned.</p>
@@ -78,6 +79,7 @@ function serviceCard(service: ServiceSnapshot): string {
       <button class="primary service-action" data-action="start" data-service="${service.kind}" ${online ? "disabled" : ""}>Start</button>
       <button class="secondary service-action" data-action="restart" data-service="${service.kind}" ${!canStop ? "disabled" : ""}>Restart</button>
       <button class="danger service-action" data-action="stop" data-service="${service.kind}" ${!canStop ? "disabled" : ""}>Stop</button>
+      ${service.kind === "harness" ? '<button class="secondary" id="prepare-profile">Prepare profile</button>' : ""}
     </div>
   </article>`;
 }
@@ -104,6 +106,9 @@ function render(): void {
 
   document.querySelectorAll<HTMLButtonElement>(".service-action").forEach((button) => button.addEventListener("click", () => serviceAction(button)));
   document.querySelectorAll<HTMLButtonElement>(".model-action").forEach((button) => button.addEventListener("click", () => modelAction(button)));
+  document.querySelector<HTMLButtonElement>("#prepare-profile")?.addEventListener("click", () => {
+    void runAction(() => invoke<ActionResult>("prepare_harness_profile"));
+  });
   updateWorkspace();
 }
 
@@ -207,6 +212,7 @@ $("#settings-button").addEventListener("click", async () => {
   ($("#ollama-command") as HTMLInputElement).value = config.ollama.command ?? "";
   ($("#harness-url") as HTMLInputElement).value = config.harness.url;
   ($("#harness-command") as HTMLInputElement).value = config.harness.command ?? "";
+  ($("#harness-home") as HTMLInputElement).value = config.harnessHome ?? "";
   ($("#harness-args") as HTMLInputElement).value = config.harness.args.join(" ");
   ($("#harness-profile") as HTMLInputElement).value = config.harnessProfile;
   dialog.showModal();
@@ -218,6 +224,7 @@ $("#settings-form").addEventListener("submit", async (event) => {
   const updated: StackConfig = {
     ollama: { ...config.ollama, url: ($("#ollama-url") as HTMLInputElement).value.trim(), command: ($("#ollama-command") as HTMLInputElement).value.trim() || undefined },
     harness: { ...config.harness, url: ($("#harness-url") as HTMLInputElement).value.trim(), command: ($("#harness-command") as HTMLInputElement).value.trim() || undefined, args: ($("#harness-args") as HTMLInputElement).value.trim().split(/\s+/).filter(Boolean) },
+    harnessHome: ($("#harness-home") as HTMLInputElement).value.trim() || undefined,
     harnessProfile: ($("#harness-profile") as HTMLInputElement).value.trim(),
   };
   await runAction(() => invoke<ActionResult>("save_config", { config: updated }));

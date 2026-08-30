@@ -15,8 +15,8 @@
 
 ## 0.2 — Safe Harness configuration
 
-- Dedicated managed Harness profile.
-- Transactional configuration with validation and rollback.
+- [x] Dedicated managed Harness profile.
+- [x] Transactional profile bootstrap with Harness-native validation and cleanup.
 - Prebuilt Harness companion bundle.
 - Version compatibility manifest and upgrade warnings.
 - Guided first-run setup.

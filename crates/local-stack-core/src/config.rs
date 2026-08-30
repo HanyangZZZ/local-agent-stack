@@ -19,6 +19,8 @@ pub struct ServiceConfig {
 pub struct StackConfig {
     pub ollama: ServiceConfig,
     pub harness: ServiceConfig,
+    #[serde(default)]
+    pub harness_home: Option<String>,
     pub harness_profile: String,
 }
 
@@ -33,8 +35,16 @@ impl Default for StackConfig {
             harness: ServiceConfig {
                 url: "http://127.0.0.1:3000".into(),
                 command: None,
-                args: vec!["web".into(), "--port".into(), "3000".into()],
+                args: vec![
+                    "web".into(),
+                    "--host".into(),
+                    "127.0.0.1".into(),
+                    "--port".into(),
+                    "3000".into(),
+                    "--no-open".into(),
+                ],
             },
+            harness_home: None,
             harness_profile: "local-agent-stack".into(),
         }
     }

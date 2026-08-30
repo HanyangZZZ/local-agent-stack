@@ -69,6 +69,7 @@ export interface ServiceConfig {
 export interface StackConfig {
   ollama: ServiceConfig;
   harness: ServiceConfig;
+  harnessHome?: string;
   harnessProfile: string;
 }
 

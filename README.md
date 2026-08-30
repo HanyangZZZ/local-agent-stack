@@ -57,6 +57,12 @@ To inspect the current machine without opening the desktop UI:
 cargo run -p local-stack-core --example snapshot
 ```
 
+To create or validate the configured update-safe Harness profile:
+
+```powershell
+cargo run -p local-stack-core --example prepare_profile
+```
+
 Ollama and DeepSeek Harness remain optional during development. The dashboard
 will report them as unavailable rather than failing to launch.
 

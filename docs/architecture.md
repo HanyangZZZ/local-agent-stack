@@ -43,6 +43,12 @@ transaction follows this sequence:
 
 The stock Harness profiles are never modified by default.
 
+The initial profile bootstrap clones the selected `web` composition into a
+uniquely named temporary sibling. Harness must successfully run
+`--dump-config` against that temporary profile before it is renamed into place.
+If validation fails, only the newly created temporary directory is removed; an
+existing target profile is never overwritten.
+
 ## Local security
 
 - Bind management endpoints to loopback or use OS-local IPC.
@@ -57,4 +63,3 @@ Desktop, runtime adapter and Harness companion versions are independent. A
 signed compatibility manifest will state tested Harness and Ollama ranges. CI
 will test the current release, previous release and upstream development build
 where practical.
-

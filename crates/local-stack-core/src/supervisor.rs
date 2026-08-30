@@ -1,10 +1,17 @@
-use std::{collections::HashMap, path::PathBuf, process::Stdio, sync::Arc, time::Duration};
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+    process::Stdio,
+    sync::Arc,
+    time::{Duration, SystemTime, UNIX_EPOCH},
+};
 
+use directories::BaseDirs;
 use tokio::{
-    fs::OpenOptions,
+    fs::{self, OpenOptions},
     process::{Child, Command},
     sync::{Mutex, RwLock},
-    time::sleep,
+    time::{sleep, timeout},
 };
 
 use crate::{
@@ -119,6 +126,7 @@ impl StackSupervisor {
         }
 
         let config = self.config().await;
+        let harness_home = config.harness_home.clone();
         let service = match kind {
             ServiceKind::Ollama => config.ollama,
             ServiceKind::Harness => config.harness,
@@ -133,6 +141,11 @@ impl StackSupervisor {
         let stderr = stdout.try_clone().await?;
 
         let mut command = platform_command(&executable, &args);
+        if kind == ServiceKind::Harness
+            && let Some(home) = harness_home
+        {
+            command.env("DSH_HOME", home);
+        }
         command
             .stdin(Stdio::null())
             .stdout(stdout.into_std().await)
@@ -223,6 +236,72 @@ impl StackSupervisor {
         Ok(ActionResult::success(format!("Deleted {model}")))
     }
 
+    pub async fn prepare_harness_profile(&self) -> Result<ActionResult> {
+        let mut config = self.config().await;
+        validate_profile_name(&config.harness_profile)?;
+        let home = harness_home(&config)?;
+        let profiles = home.join("profiles");
+        let source = profiles.join("web");
+        let destination = profiles.join(&config.harness_profile);
+
+        if !source.join("package.json").is_file() {
+            return Err(StackError::Config(format!(
+                "the source Harness web profile was not found at {}",
+                source.display()
+            )));
+        }
+
+        let validation_message = if destination.is_dir() {
+            self.validate_harness_profile(&config, &home, &config.harness_profile)
+                .await?;
+            format!("Harness profile {} is valid", config.harness_profile)
+        } else {
+            fs::create_dir_all(&profiles).await?;
+            let nonce = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .map_err(|error| StackError::Config(error.to_string()))?
+                .as_millis();
+            let temporary_name = format!(".las-{}-{nonce}", config.harness_profile);
+            let temporary = profiles.join(&temporary_name);
+            fs::create_dir(&temporary).await?;
+
+            let result = async {
+                copy_profile_file(&source, &temporary, "cordis.patch.yml", false).await?;
+                copy_profile_file(&source, &temporary, "pnpm-workspace.yaml", false).await?;
+                let package = fs::read(source.join("package.json")).await?;
+                let mut package: serde_json::Value = serde_json::from_slice(&package)?;
+                package["name"] =
+                    serde_json::Value::String(format!("dsh-profile-{}", config.harness_profile));
+                fs::write(
+                    temporary.join("package.json"),
+                    serde_json::to_vec_pretty(&package)?,
+                )
+                .await?;
+
+                self.validate_harness_profile(&config, &home, &temporary_name)
+                    .await?;
+                fs::rename(&temporary, &destination).await?;
+                Result::<()>::Ok(())
+            }
+            .await;
+
+            if result.is_err() && temporary.is_dir() {
+                let _ = fs::remove_dir_all(&temporary).await;
+            }
+            result?;
+            format!(
+                "Created and validated Harness profile {}",
+                config.harness_profile
+            )
+        };
+
+        config.harness_home = Some(home.display().to_string());
+        config.harness.args = harness_profile_args(&config)?;
+        self.store.save(&config).await?;
+        *self.config.write().await = config;
+        Ok(ActionResult::success(validation_message))
+    }
+
     async fn managed_processes(&self) -> HashMap<ServiceKind, u32> {
         self.children
             .lock()
@@ -274,6 +353,122 @@ impl StackSupervisor {
                 .unwrap_or(false),
         }
     }
+
+    async fn validate_harness_profile(
+        &self,
+        config: &StackConfig,
+        home: &Path,
+        profile: &str,
+    ) -> Result<()> {
+        let args = vec!["--profile".into(), profile.into(), "--dump-config".into()];
+        let (executable, args) = resolve_launch(
+            ServiceKind::Harness,
+            config.harness.command.as_deref(),
+            &args,
+        )?;
+        let mut command = platform_command(&executable, &args);
+        command
+            .env("DSH_HOME", home)
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+        #[cfg(windows)]
+        command.creation_flags(0x0800_0000);
+
+        let output = timeout(Duration::from_secs(45), command.output())
+            .await
+            .map_err(|_| StackError::Config("Harness profile validation timed out".into()))??;
+        if !output.status.success() {
+            let detail = String::from_utf8_lossy(&output.stderr);
+            return Err(StackError::Config(format!(
+                "Harness rejected profile {profile}: {}",
+                detail.trim()
+            )));
+        }
+        if output.stdout.is_empty() {
+            return Err(StackError::Config(format!(
+                "Harness profile {profile} produced an empty configuration"
+            )));
+        }
+        Ok(())
+    }
+}
+
+fn harness_home(config: &StackConfig) -> Result<PathBuf> {
+    if let Some(value) = config
+        .harness_home
+        .as_deref()
+        .filter(|value| !value.trim().is_empty())
+    {
+        return Ok(PathBuf::from(value));
+    }
+    if let Some(value) = std::env::var_os("DSH_HOME") {
+        return Ok(PathBuf::from(value));
+    }
+    let base = BaseDirs::new()
+        .ok_or_else(|| StackError::Config("the user home directory is unavailable".into()))?;
+    let default = base.home_dir().join(".dsh");
+    if default.is_dir() {
+        return Ok(default);
+    }
+    Err(StackError::Config(
+        "Harness home was not detected; set it in Settings".into(),
+    ))
+}
+
+fn validate_profile_name(profile: &str) -> Result<()> {
+    let valid = !profile.is_empty()
+        && profile.len() <= 64
+        && profile
+            .chars()
+            .all(|value| value.is_ascii_alphanumeric() || matches!(value, '-' | '_' | '.'))
+        && profile != "."
+        && profile != "..";
+    if valid {
+        Ok(())
+    } else {
+        Err(StackError::Config(
+            "Harness profile must contain only letters, numbers, dots, dashes, or underscores"
+                .into(),
+        ))
+    }
+}
+
+async fn copy_profile_file(
+    source: &Path,
+    destination: &Path,
+    name: &str,
+    required: bool,
+) -> Result<()> {
+    let source = source.join(name);
+    if source.is_file() {
+        fs::copy(source, destination.join(name)).await?;
+    } else if required {
+        return Err(StackError::Config(format!(
+            "Harness profile file {name} is missing"
+        )));
+    }
+    Ok(())
+}
+
+fn harness_profile_args(config: &StackConfig) -> Result<Vec<String>> {
+    let url = reqwest::Url::parse(&config.harness.url)
+        .map_err(|error| StackError::Config(format!("Harness URL is invalid: {error}")))?;
+    let host = url
+        .host_str()
+        .ok_or_else(|| StackError::Config("Harness URL has no host".into()))?;
+    let port = url
+        .port_or_known_default()
+        .ok_or_else(|| StackError::Config("Harness URL has no port".into()))?;
+    Ok(vec![
+        "--profile".into(),
+        config.harness_profile.clone(),
+        "--host".into(),
+        host.into(),
+        "--port".into(),
+        port.to_string(),
+        "--no-open".into(),
+    ])
 }
 
 fn resolve_launch(
@@ -354,4 +549,42 @@ fn platform_command(executable: &PathBuf, args: &[String]) -> Command {
     let mut command = Command::new(executable);
     command.args(args);
     command
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn accepts_safe_harness_profile_names() {
+        for profile in ["local-agent-stack", "team_1", "profile.v2"] {
+            validate_profile_name(profile).unwrap();
+        }
+    }
+
+    #[test]
+    fn rejects_harness_profile_path_traversal() {
+        for profile in ["", ".", "..", "../web", "folder/profile", "folder\\profile"] {
+            assert!(validate_profile_name(profile).is_err());
+        }
+    }
+
+    #[test]
+    fn builds_loopback_profile_launch_arguments() {
+        let mut config = StackConfig::default();
+        config.harness.url = "http://127.0.0.1:3456".into();
+        let args = harness_profile_args(&config).unwrap();
+        assert_eq!(
+            args,
+            [
+                "--profile",
+                "local-agent-stack",
+                "--host",
+                "127.0.0.1",
+                "--port",
+                "3456",
+                "--no-open"
+            ]
+        );
+    }
 }
