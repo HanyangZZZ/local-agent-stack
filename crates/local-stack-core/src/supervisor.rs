@@ -1,5 +1,5 @@
 use std::{
-    collections::HashMap,
+    collections::{HashMap, VecDeque},
     path::{Path, PathBuf},
     process::Stdio,
     sync::Arc,
@@ -15,9 +15,9 @@ use tokio::{
 };
 
 use crate::{
-    ActionResult, ConfigStore, OllamaClient, PullProgress, Result, ServiceKind, ServiceSnapshot,
-    ServiceState, StackConfig, StackError, StackSnapshot, assess_versions, export_diagnostics,
-    inspect_environment,
+    ActionResult, ConfigStore, ManagedRuntimeStore, OllamaClient, PullProgress, Result,
+    ServiceKind, ServiceSnapshot, ServiceState, StackConfig, StackError, StackSnapshot,
+    assess_versions, embedded_manifest, export_diagnostics, inspect_environment,
 };
 
 const HARNESS_COMPANION_URL: &str = "https://github.com/HanyangZZZ/local-agent-stack/releases/download/v0.1.0-alpha.2/local-agent-stack-harness-companion-0.1.0-alpha.2.tgz";
@@ -28,6 +28,7 @@ pub struct StackSupervisor {
     config: Arc<RwLock<StackConfig>>,
     children: Arc<Mutex<HashMap<ServiceKind, Child>>>,
     http: reqwest::Client,
+    managed_runtimes: ManagedRuntimeStore,
 }
 
 impl StackSupervisor {
@@ -45,6 +46,7 @@ impl StackSupervisor {
             http: reqwest::Client::builder()
                 .timeout(Duration::from_secs(3))
                 .build()?,
+            managed_runtimes: ManagedRuntimeStore::discover()?,
         })
     }
 
@@ -106,10 +108,10 @@ impl StackSupervisor {
             Vec::new()
         };
         let mut environment = inspect_environment().await;
-        if environment.ollama_path.is_none() {
+        if config.ollama.command.is_some() {
             environment.ollama_path = config.ollama.command.clone();
         }
-        if environment.harness_path.is_none() {
+        if config.harness.command.is_some() {
             environment.harness_path = config.harness.command.clone();
         }
         if environment.node_path.is_none()
@@ -121,11 +123,22 @@ impl StackSupervisor {
                 environment.node_path = Some(node.display().to_string());
             }
         }
-        let harness_version = match environment.harness_path.as_deref() {
-            Some(command) if is_harness_command(command) => inspect_cli_version(command).await,
+        let harness_version = match (
+            environment.harness_path.as_deref(),
+            config.managed_harness_entrypoint.as_deref(),
+        ) {
+            (Some(command), Some(entrypoint)) => {
+                inspect_managed_harness_version(command, entrypoint)
+                    .await
+                    .ok()
+            }
+            (Some(command), None) if is_harness_command(command) => {
+                inspect_cli_version(command).await
+            }
             _ => None,
         };
         let compatibility = assess_versions(ollama_version.as_deref(), harness_version.as_deref())?;
+        let managed_harness = self.managed_runtimes.status(ServiceKind::Harness).await?;
 
         Ok(StackSnapshot {
             ollama: ServiceSnapshot {
@@ -158,6 +171,7 @@ impl StackSupervisor {
             running_models,
             environment,
             compatibility,
+            managed_harness,
             config_path: self.store.path().display().to_string(),
         })
     }
@@ -361,13 +375,16 @@ impl StackSupervisor {
             ));
         }
 
-        let args = vec![
-            "plugin".into(),
-            "--profile".into(),
-            config.harness_profile.clone(),
-            "add".into(),
-            HARNESS_COMPANION_URL.into(),
-        ];
+        let args = harness_cli_args(
+            &config,
+            vec![
+                "plugin".into(),
+                "--profile".into(),
+                config.harness_profile.clone(),
+                "add".into(),
+                HARNESS_COMPANION_URL.into(),
+            ],
+        );
         let (executable, args) = resolve_launch(
             ServiceKind::Harness,
             config.harness.command.as_deref(),
@@ -400,6 +417,115 @@ impl StackSupervisor {
         Ok(ActionResult::success(format!(
             "Installed and validated the Harness companion in {}",
             config.harness_profile
+        )))
+    }
+
+    pub async fn install_managed_harness(&self) -> Result<ActionResult> {
+        let mut config = self.config().await;
+        let requirement = embedded_manifest()?
+            .components
+            .into_iter()
+            .find(|component| component.kind == ServiceKind::Harness)
+            .ok_or_else(|| {
+                StackError::Config("the compatibility manifest has no Harness release".into())
+            })?;
+        let version = requirement.recommended_version.to_string();
+        let node = resolve_managed_tool(
+            config.managed_harness_node.as_deref(),
+            config.harness.command.as_deref(),
+            if cfg!(windows) { "node.exe" } else { "node" },
+        )?;
+        let source = resolve_harness_package_source(
+            config.managed_harness_source.as_deref(),
+            config.harness.command.as_deref(),
+        )?;
+        validate_harness_package(&source, &version).await?;
+        let staging = self
+            .managed_runtimes
+            .create_staging_directory(ServiceKind::Harness, &version)
+            .await?;
+
+        let result = async {
+            let executable_relative = PathBuf::from(managed_node_name());
+            let executable = staging.join(&executable_relative);
+            let entrypoint = staging.join("package").join("lib").join("bin.js");
+            copy_directory_tree(&source, &staging.join("package")).await?;
+            fs::copy(&node, &executable).await?;
+            let detected = inspect_managed_harness_version(
+                executable.to_string_lossy().as_ref(),
+                entrypoint.to_string_lossy().as_ref(),
+            )
+            .await?;
+            if detected.trim_start_matches('v') != version {
+                return Err(StackError::Config(format!(
+                    "the staged Harness reported {detected}, expected {version}"
+                )));
+            }
+
+            self.managed_runtimes
+                .activate_staging(
+                    ServiceKind::Harness,
+                    &version,
+                    &staging,
+                    &executable_relative,
+                )
+                .await
+        }
+        .await;
+
+        let executable = match result {
+            Ok(executable) => executable,
+            Err(error) => {
+                let _ = self
+                    .managed_runtimes
+                    .abandon_staging(ServiceKind::Harness, &staging)
+                    .await;
+                return Err(error);
+            }
+        };
+
+        config.harness.command = Some(executable.display().to_string());
+        config.managed_harness_entrypoint = Some(
+            executable
+                .parent()
+                .ok_or_else(|| StackError::Config("managed Harness release has no parent".into()))?
+                .join("package")
+                .join("lib")
+                .join("bin.js")
+                .display()
+                .to_string(),
+        );
+        config.managed_harness_node = Some(node.display().to_string());
+        config.managed_harness_source = Some(source.display().to_string());
+        config.harness.args = harness_profile_args(&config)?;
+        self.store.save(&config).await?;
+        *self.config.write().await = config;
+        Ok(ActionResult::success(format!(
+            "Imported and activated app-owned Harness {version}; the external installation remains unchanged and the previous managed release was preserved"
+        )))
+    }
+
+    pub async fn rollback_managed_harness(&self) -> Result<ActionResult> {
+        let executable = self.managed_runtimes.rollback(ServiceKind::Harness).await?;
+        let entrypoint = executable
+            .parent()
+            .ok_or_else(|| StackError::Config("managed Harness release has no parent".into()))?
+            .join("package")
+            .join("lib")
+            .join("bin.js");
+        let detected = inspect_managed_harness_version(
+            executable.to_string_lossy().as_ref(),
+            entrypoint.to_string_lossy().as_ref(),
+        )
+        .await?;
+        let mut config = self.config().await;
+        config.harness.command = Some(executable.display().to_string());
+        config.managed_harness_entrypoint = Some(entrypoint.display().to_string());
+        config.harness.args = harness_profile_args(&config)?;
+        self.store.save(&config).await?;
+        *self.config.write().await = config;
+        Ok(ActionResult::success(format!(
+            "Rolled back the app-owned Harness to {detected}"
         )))
     }
 
@@ -461,7 +587,10 @@ impl StackSupervisor {
         home: &Path,
         profile: &str,
     ) -> Result<()> {
-        let args = vec!["--profile".into(), profile.into(), "--dump-config".into()];
+        let args = harness_cli_args(
+            config,
+            vec!["--profile".into(), profile.into(), "--dump-config".into()],
+        );
         let (executable, args) = resolve_launch(
             ServiceKind::Harness,
             config.harness.command.as_deref(),
@@ -561,15 +690,25 @@ fn harness_profile_args(config: &StackConfig) -> Result<Vec<String>> {
     let port = url
         .port_or_known_default()
         .ok_or_else(|| StackError::Config("Harness URL has no port".into()))?;
-    Ok(vec![
-        "--profile".into(),
-        config.harness_profile.clone(),
-        "--host".into(),
-        host.into(),
-        "--port".into(),
-        port.to_string(),
-        "--no-open".into(),
-    ])
+    Ok(harness_cli_args(
+        config,
+        vec![
+            "--profile".into(),
+            config.harness_profile.clone(),
+            "--host".into(),
+            host.into(),
+            "--port".into(),
+            port.to_string(),
+            "--no-open".into(),
+        ],
+    ))
+}
+
+fn harness_cli_args(config: &StackConfig, args: Vec<String>) -> Vec<String> {
+    match config.managed_harness_entrypoint.as_ref() {
+        Some(entrypoint) => std::iter::once(entrypoint.clone()).chain(args).collect(),
+        None => args,
+    }
 }
 
 fn resolve_launch(
@@ -620,6 +759,108 @@ fn resolve_launch(
     })
 }
 
+fn resolve_managed_tool(
+    configured: Option<&str>,
+    harness_command: Option<&str>,
+    name: &str,
+) -> Result<PathBuf> {
+    if let Some(path) = configured.map(PathBuf::from).filter(|path| path.is_file()) {
+        return Ok(path);
+    }
+    if let Some(parent) = harness_command.and_then(|command| Path::new(command).parent()) {
+        let sibling = parent.join(name);
+        if sibling.is_file() {
+            return Ok(sibling);
+        }
+    }
+    which::which(name).map_err(|_| StackError::CommandNotFound {
+        service: format!("Harness installation tool {name}"),
+    })
+}
+
+fn managed_node_name() -> &'static str {
+    if cfg!(windows) { "node.exe" } else { "node" }
+}
+
+fn resolve_harness_package_source(
+    configured: Option<&str>,
+    harness_command: Option<&str>,
+) -> Result<PathBuf> {
+    if let Some(path) = configured.map(PathBuf::from).filter(|path| path.is_dir()) {
+        return Ok(path);
+    }
+    let command = harness_command
+        .map(PathBuf::from)
+        .or_else(|| which::which("dsh").ok())
+        .ok_or_else(|| StackError::CommandNotFound {
+            service: "Harness import source".into(),
+        })?;
+    let parent = command.parent().ok_or_else(|| {
+        StackError::Config("the configured Harness executable has no parent".into())
+    })?;
+    for candidate in [
+        parent.join("package"),
+        parent.join("node_modules").join("@deepseek-ai").join("dsh"),
+    ] {
+        if candidate.join("package.json").is_file() {
+            return Ok(candidate);
+        }
+    }
+    Err(StackError::Config(
+        "the installed @deepseek-ai/dsh package could not be located next to the configured executable"
+            .into(),
+    ))
+}
+
+async fn validate_harness_package(source: &Path, expected_version: &str) -> Result<()> {
+    let bytes = fs::read(source.join("package.json")).await?;
+    let package: serde_json::Value = serde_json::from_slice(&bytes)?;
+    let name = package.get("name").and_then(|value| value.as_str());
+    let version = package.get("version").and_then(|value| value.as_str());
+    if name != Some("@deepseek-ai/dsh") {
+        return Err(StackError::Config(
+            "the Harness import source is not the @deepseek-ai/dsh package".into(),
+        ));
+    }
+    if version != Some(expected_version) {
+        return Err(StackError::Config(format!(
+            "installed Harness is {}, but the tested release is {expected_version}; update the external Harness before importing it",
+            version.unwrap_or("unknown")
+        )));
+    }
+    if !source.join("lib").join("bin.js").is_file() {
+        return Err(StackError::Config(
+            "the Harness import source is missing lib/bin.js".into(),
+        ));
+    }
+    Ok(())
+}
+
+async fn copy_directory_tree(source: &Path, destination: &Path) -> Result<()> {
+    let canonical_source = fs::canonicalize(source).await?;
+    fs::create_dir_all(destination).await?;
+    let mut pending = VecDeque::from([(canonical_source, destination.to_path_buf())]);
+    while let Some((current_source, current_destination)) = pending.pop_front() {
+        let mut entries = fs::read_dir(&current_source).await?;
+        while let Some(entry) = entries.next_entry().await? {
+            let file_type = entry.file_type().await?;
+            let target = current_destination.join(entry.file_name());
+            if file_type.is_dir() {
+                fs::create_dir(&target).await?;
+                pending.push_back((entry.path(), target));
+            } else if file_type.is_file() {
+                fs::copy(entry.path(), target).await?;
+            } else {
+                return Err(StackError::Config(format!(
+                    "Harness import source contains an unsupported link or special file: {}",
+                    entry.path().display()
+                )));
+            }
+        }
+    }
+    Ok(())
+}
+
 fn platform_command(executable: &PathBuf, args: &[String]) -> Command {
     #[cfg(windows)]
     {
@@ -660,21 +901,54 @@ fn is_harness_command(value: &str) -> bool {
 }
 
 async fn inspect_cli_version(value: &str) -> Option<String> {
+    inspect_cli_version_result(value).await.ok()
+}
+
+async fn inspect_cli_version_result(value: &str) -> Result<String> {
     let executable = PathBuf::from(value);
     let mut command = platform_command(&executable, &["--version".into()]);
     command.kill_on_drop(true);
     let output = timeout(Duration::from_secs(3), command.output())
         .await
-        .ok()?
-        .ok()?;
+        .map_err(|_| StackError::Config("Harness version check timed out".into()))??;
     if !output.status.success() {
-        return None;
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(StackError::Config(format!(
+            "Harness version check failed: {}",
+            stderr.trim()
+        )));
     }
     String::from_utf8_lossy(&output.stdout)
         .lines()
         .map(str::trim)
         .find(|line| !line.is_empty())
         .map(str::to_owned)
+        .ok_or_else(|| StackError::Config("Harness version check returned no version".into()))
+}
+
+async fn inspect_managed_harness_version(node: &str, entrypoint: &str) -> Result<String> {
+    let mut command = Command::new(node);
+    command.arg(entrypoint).arg("--version").kill_on_drop(true);
+    #[cfg(windows)]
+    command.creation_flags(0x0800_0000);
+    let output = timeout(Duration::from_secs(3), command.output())
+        .await
+        .map_err(|_| StackError::Config("managed Harness version check timed out".into()))??;
+    if !output.status.success() {
+        let detail = String::from_utf8_lossy(&output.stderr);
+        return Err(StackError::Config(format!(
+            "managed Harness version check failed: {}",
+            detail.trim()
+        )));
+    }
+    String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .map(str::trim)
+        .find(|line| !line.is_empty())
+        .map(str::to_owned)
+        .ok_or_else(|| {
+            StackError::Config("managed Harness version check returned no version".into())
+        })
 }
 
 #[cfg(test)]
@@ -712,5 +986,17 @@ mod tests {
                 "--no-open"
             ]
         );
+    }
+
+    #[test]
+    fn prefixes_managed_harness_entrypoint_without_shell_composition() {
+        let config = StackConfig {
+            managed_harness_entrypoint: Some("C:\\App Data\\Harness\\lib\\bin.js".into()),
+            ..StackConfig::default()
+        };
+        let args = harness_profile_args(&config).unwrap();
+        assert_eq!(args.first(), config.managed_harness_entrypoint.as_ref());
+        assert_eq!(args[1], "--profile");
+        assert_eq!(args[2], "local-agent-stack");
     }
 }

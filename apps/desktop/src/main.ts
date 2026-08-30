@@ -34,6 +34,7 @@ app.innerHTML = `
       <div id="notice" class="notice hidden"></div>
       <div class="environment-strip" id="environment-strip"><span>Inspecting local environment…</span></div>
       <div class="compatibility-strip" id="compatibility-strip"></div>
+      <div class="runtime-management" id="runtime-management"></div>
       <div class="service-grid" id="service-grid"><div class="skeleton"></div><div class="skeleton"></div></div>
       <section class="panel">
         <div class="panel-heading"><div><p class="eyebrow">MODEL LIBRARY</p><h2>Ollama models</h2></div><form id="pull-form"><input id="model-name" placeholder="e.g. qwen3:8b" autocomplete="off"><button class="primary" type="submit">Pull model</button></form></div>
@@ -64,9 +65,10 @@ app.innerHTML = `
       <div class="setup-summary" id="setup-summary">Inspecting this computer…</div>
       <div class="setup-steps">
         <article><span>1</span><div><strong>Review runtime settings</strong><p>Confirm loopback URLs, executable paths, and Harness home.</p><button class="secondary" id="setup-settings" type="button">Open settings</button></div></article>
-        <article><span>2</span><div><strong>Prepare Harness profile</strong><p>Clone and validate an isolated profile without modifying the stock web profile.</p><button class="secondary" id="setup-profile" type="button">Prepare profile</button><small id="setup-profile-result"></small></div></article>
-        <article><span>3</span><div><strong>Install companion</strong><p>Add the versioned read-only <code>/local-stack</code> command bundle.</p><button class="secondary" id="setup-companion" type="button">Install companion</button><small id="setup-companion-result"></small></div></article>
-        <article><span>4</span><div><strong>Verify health</strong><p>Refresh service, GPU, model, and local toolchain state.</p><button class="primary" id="setup-verify" type="button">Run health check</button><small id="setup-verify-result"></small></div></article>
+        <article><span>2</span><div><strong>Install managed Harness</strong><p>Install the tested release into app-owned storage. Your external installation remains untouched.</p><button class="secondary" id="setup-managed" type="button">Install managed Harness</button><small id="setup-managed-result"></small></div></article>
+        <article><span>3</span><div><strong>Prepare Harness profile</strong><p>Clone and validate an isolated profile without modifying the stock web profile.</p><button class="secondary" id="setup-profile" type="button">Prepare profile</button><small id="setup-profile-result"></small></div></article>
+        <article><span>4</span><div><strong>Install companion</strong><p>Add the versioned read-only <code>/local-stack</code> command bundle.</p><button class="secondary" id="setup-companion" type="button">Install companion</button><small id="setup-companion-result"></small></div></article>
+        <article><span>5</span><div><strong>Verify health</strong><p>Refresh service, GPU, model, and local toolchain state.</p><button class="primary" id="setup-verify" type="button">Run health check</button><small id="setup-verify-result"></small></div></article>
       </div>
       <div class="dialog-actions"><button class="secondary" id="setup-later" type="button">Set up later</button><button class="primary" id="setup-finish" type="button" disabled>Finish setup</button></div>
     </div>
@@ -118,6 +120,10 @@ function render(): void {
       <span class="compatibility-state">${component.state}</span>
       <div><strong>${component.displayName} ${component.detectedVersion ?? "version unknown"}</strong><small>${component.message} · Recommended ${component.recommendedVersion}</small></div>
     </div>`).join("");
+  const managedHarness = snapshot.managedHarness;
+  $("#runtime-management").innerHTML = `
+    <div><p class="eyebrow">APP-OWNED RUNTIME</p><strong>${managedHarness.installed ? `Harness ${managedHarness.currentVersion}` : "Harness is externally installed"}</strong><span>${managedHarness.installed ? `Versioned release active${managedHarness.previousVersion ? ` · Previous ${managedHarness.previousVersion}` : ""}` : "Install a tested copy without modifying the existing Harness installation."}</span></div>
+    <div class="runtime-actions"><button class="secondary" id="install-managed-harness">${managedHarness.installed ? "Install tested release" : "Install managed Harness"}</button><button class="secondary" id="rollback-managed-harness" ${managedHarness.canRollback ? "" : "disabled"}>Rollback</button></div>`;
 
   const running = new Map(snapshot.runningModels.map((model) => [model.name, model]));
   $("#models").innerHTML = snapshot.installedModels.length
@@ -134,6 +140,13 @@ function render(): void {
   });
   document.querySelector<HTMLButtonElement>("#install-companion")?.addEventListener("click", () => {
     void runAction(() => invoke<ActionResult>("install_harness_companion"));
+  });
+  $("#install-managed-harness").addEventListener("click", () => {
+    void runAction(() => invoke<ActionResult>("install_managed_harness"));
+  });
+  $("#rollback-managed-harness").addEventListener("click", () => {
+    if (!window.confirm("Switch Harness back to the previous app-owned release?")) return;
+    void runAction(() => invoke<ActionResult>("rollback_managed_harness"));
   });
   updateWorkspace();
 }
@@ -264,6 +277,9 @@ $("#settings-form").addEventListener("submit", async (event) => {
     harness: { ...config.harness, url: ($("#harness-url") as HTMLInputElement).value.trim(), command: ($("#harness-command") as HTMLInputElement).value.trim() || undefined, args: ($("#harness-args") as HTMLInputElement).value.trim().split(/\s+/).filter(Boolean) },
     harnessHome: ($("#harness-home") as HTMLInputElement).value.trim() || undefined,
     harnessProfile: ($("#harness-profile") as HTMLInputElement).value.trim(),
+    managedHarnessNode: config.managedHarnessNode,
+    managedHarnessSource: config.managedHarnessSource,
+    managedHarnessEntrypoint: config.managedHarnessEntrypoint,
     setupCompleted: config.setupCompleted,
   };
   await runAction(() => invoke<ActionResult>("save_config", { config: updated }));
@@ -278,6 +294,7 @@ function updateSetupSummary(): void {
   const detected = [
     snapshot.environment.ollamaPath ? "Ollama detected" : "Ollama not detected",
     snapshot.environment.harnessPath ? "Harness detected" : "Harness not detected",
+    snapshot.managedHarness.installed ? `Managed Harness ${snapshot.managedHarness.currentVersion}` : "External Harness mode",
     gpu ? `${gpu.name} · ${(gpu.memoryTotalMib / 1024).toFixed(1)} GB VRAM` : "No NVIDIA GPU detected",
     snapshot.compatibility.components.some((component) => component.state === "outdated") ? "Upgrade warning" : "Compatibility checked",
   ];
@@ -316,6 +333,9 @@ $("#setup-settings").addEventListener("click", () => {
 });
 $("#setup-profile").addEventListener("click", () => {
   void runSetupCommand("prepare_harness_profile", "#setup-profile", "#setup-profile-result");
+});
+$("#setup-managed").addEventListener("click", () => {
+  void runSetupCommand("install_managed_harness", "#setup-managed", "#setup-managed-result");
 });
 $("#setup-companion").addEventListener("click", () => {
   void runSetupCommand("install_harness_companion", "#setup-companion", "#setup-companion-result");

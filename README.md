@@ -71,6 +71,14 @@ To export a support report without prompts, logs, credentials, or full paths:
 cargo run -p local-stack-core --example export_diagnostics
 ```
 
+To import the tested Harness installation into app-owned versioned storage and
+then smoke-test it on the isolated port used by development checks:
+
+```powershell
+cargo run -p local-stack-core --example install_managed_harness
+cargo run -p local-stack-core --example smoke_managed_harness
+```
+
 Ollama and DeepSeek Harness remain optional during development. The dashboard
 will report them as unavailable rather than failing to launch.
 
@@ -98,12 +106,21 @@ process messages, command arguments, logs, prompts, and credentials.
 
 The managed Harness workflow is available from the Harness service card:
 
-1. **Prepare profile** clones and validates an isolated profile without
+1. **Install managed Harness** imports the tested external Harness package and
+   a private Node executable into versioned app-owned storage. It validates the
+   copy before switching the app configuration and never changes the source.
+2. **Prepare profile** clones and validates an isolated profile without
    changing the stock `web` profile.
-2. **Install companion** adds the versioned read-only bundle from the matching
+3. **Install companion** adds the versioned read-only bundle from the matching
    GitHub release and validates the composition again.
-3. Start Harness from the control center and use `/local-stack` inside Harness
+4. Start Harness from the control center and use `/local-stack` inside Harness
    to view runtime and GPU-memory status.
+
+Each managed import receives a distinct release directory. The current and
+previous releases remain side by side, and **Rollback** atomically switches the
+active pointer after confirming the previous executable still exists. Runtime
+state is stored under the operating system's local application-data directory;
+full paths are excluded from diagnostic exports.
 
 The compatibility strip uses [manifests/compatibility.json](manifests/compatibility.json)
 to distinguish tested versions from runtimes that are too old or newer than the

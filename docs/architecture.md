@@ -13,9 +13,17 @@ the supervisor remains usable when Harness is stopped or broken.
 
 ## Bring-your-own and managed installations
 
-Version 0.1 implements bring-your-own installation discovery. A later managed
-mode may install pinned versions into an app-owned data directory. Both modes
-must use the same adapter interface and declarative `StackConfig` schema.
+Version 0.1 implements bring-your-own installation discovery and an app-owned
+Harness import. The import copies an already installed, manifest-tested Harness
+package and Node executable into a unique release directory, validates the
+copied CLI, atomically activates a state pointer, and keeps the previous release
+for rollback. The external installation remains untouched. Ollama remains
+bring-your-own until verified artifact download and extraction are implemented.
+
+Managed runtime staging accepts only direct children of the app-owned staging
+root. Executable paths and release identifiers are validated as relative path
+components before use. Unsupported links or special files abort an import, and
+failed validation removes only the transaction's staging directory.
 
 ## Service lifecycle
 

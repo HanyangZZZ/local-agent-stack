@@ -65,6 +65,7 @@ pub struct StackSnapshot {
     pub running_models: Vec<RunningModel>,
     pub environment: EnvironmentSnapshot,
     pub compatibility: crate::CompatibilityReport,
+    pub managed_harness: crate::ManagedRuntimeStatus,
     pub config_path: String,
 }
 

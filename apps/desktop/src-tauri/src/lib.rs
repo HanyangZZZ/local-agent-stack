@@ -115,6 +115,24 @@ async fn install_harness_companion(state: State<'_, AppState>) -> Result<ActionR
 }
 
 #[tauri::command]
+async fn install_managed_harness(state: State<'_, AppState>) -> Result<ActionResult, String> {
+    state
+        .0
+        .install_managed_harness()
+        .await
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+async fn rollback_managed_harness(state: State<'_, AppState>) -> Result<ActionResult, String> {
+    state
+        .0
+        .rollback_managed_harness()
+        .await
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
 async fn complete_setup(state: State<'_, AppState>) -> Result<ActionResult, String> {
     state
         .0
@@ -150,6 +168,8 @@ pub fn run() {
             delete_model,
             prepare_harness_profile,
             install_harness_companion,
+            install_managed_harness,
+            rollback_managed_harness,
             complete_setup,
             export_diagnostics,
         ])

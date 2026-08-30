@@ -23,6 +23,12 @@ pub struct StackConfig {
     pub harness_home: Option<String>,
     pub harness_profile: String,
     #[serde(default)]
+    pub managed_harness_node: Option<String>,
+    #[serde(default)]
+    pub managed_harness_source: Option<String>,
+    #[serde(default)]
+    pub managed_harness_entrypoint: Option<String>,
+    #[serde(default)]
     pub setup_completed: bool,
 }
 
@@ -48,6 +54,9 @@ impl Default for StackConfig {
             },
             harness_home: None,
             harness_profile: "local-agent-stack".into(),
+            managed_harness_node: None,
+            managed_harness_source: None,
+            managed_harness_entrypoint: None,
             setup_completed: false,
         }
     }

@@ -3,6 +3,7 @@ mod config;
 mod diagnostics;
 mod environment;
 mod error;
+mod managed;
 mod ollama;
 mod supervisor;
 mod types;
@@ -15,6 +16,9 @@ pub use config::{ConfigStore, StackConfig};
 pub use diagnostics::export_diagnostics;
 pub use environment::inspect_environment;
 pub use error::{Result, StackError};
+pub use managed::{
+    ManagedRuntimeRelease, ManagedRuntimeState, ManagedRuntimeStatus, ManagedRuntimeStore,
+};
 pub use ollama::OllamaClient;
 pub use supervisor::StackSupervisor;
 pub use types::{

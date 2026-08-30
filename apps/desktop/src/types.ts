@@ -33,7 +33,15 @@ export interface StackSnapshot {
   runningModels: RunningModel[];
   environment: EnvironmentSnapshot;
   compatibility: CompatibilityReport;
+  managedHarness: ManagedRuntimeStatus;
   configPath: string;
+}
+
+export interface ManagedRuntimeStatus {
+  installed: boolean;
+  currentVersion?: string;
+  previousVersion?: string;
+  canRollback: boolean;
 }
 
 export type CompatibilityState = "compatible" | "outdated" | "untested" | "unknown";
@@ -89,6 +97,9 @@ export interface StackConfig {
   harness: ServiceConfig;
   harnessHome?: string;
   harnessProfile: string;
+  managedHarnessNode?: string;
+  managedHarnessSource?: string;
+  managedHarnessEntrypoint?: string;
   setupCompleted: boolean;
 }
 

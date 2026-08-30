@@ -58,7 +58,10 @@ fn redacted_config(config: &StackConfig) -> Value {
             "url": config.harness.url,
             "executable": executable_name(config.harness.command.as_deref()),
             "argumentCount": config.harness.args.len(),
-            "profile": config.harness_profile
+            "profile": config.harness_profile,
+            "managedNodeExecutable": executable_name(config.managed_harness_node.as_deref()),
+            "managedSourceConfigured": config.managed_harness_source.is_some(),
+            "managedEntrypointConfigured": config.managed_harness_entrypoint.is_some()
         },
         "setupCompleted": config.setup_completed
     })

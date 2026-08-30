@@ -10,6 +10,9 @@
     "harness": { "$ref": "#/$defs/service" },
     "harnessHome": { "type": ["string", "null"] },
     "harnessProfile": { "type": "string", "minLength": 1 },
+    "managedHarnessNode": { "type": ["string", "null"] },
+    "managedHarnessSource": { "type": ["string", "null"] },
+    "managedHarnessEntrypoint": { "type": ["string", "null"] },
     "setupCompleted": { "type": "boolean", "default": false }
   },
   "$defs": {

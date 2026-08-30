@@ -23,8 +23,9 @@
 
 ## 0.3 — Managed installations and more platforms
 
-- App-owned, pinned Ollama and Harness installations.
-- Verified downloads, atomic upgrades and rollback.
+- [x] App-owned, versioned Harness import with validation and rollback.
+- App-owned, pinned Ollama installation.
+- Verified runtime downloads and atomic upgrades.
 - macOS and Linux builds.
 - Background tray supervisor and verified PID reattachment.
 
