@@ -9,7 +9,8 @@
     "ollama": { "$ref": "#/$defs/service" },
     "harness": { "$ref": "#/$defs/service" },
     "harnessHome": { "type": ["string", "null"] },
-    "harnessProfile": { "type": "string", "minLength": 1 }
+    "harnessProfile": { "type": "string", "minLength": 1 },
+    "setupCompleted": { "type": "boolean", "default": false }
   },
   "$defs": {
     "service": {

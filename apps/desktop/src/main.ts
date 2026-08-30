@@ -10,6 +10,8 @@ let snapshot: StackSnapshot | undefined;
 let config: StackConfig | undefined;
 let busy = false;
 let workspaceVisible = false;
+let onboardingShown = false;
+let setupVerified = false;
 
 app.innerHTML = `
   <header class="topbar">
@@ -27,7 +29,7 @@ app.innerHTML = `
     <section id="dashboard-view">
       <div class="hero">
         <div><p class="eyebrow">SYSTEM OVERVIEW</p><h1>Your local agent stack,<br><em>under control.</em></h1></div>
-        <div class="hero-actions"><button class="secondary" id="refresh-button">Refresh</button><button class="primary" id="launch-button">Open Harness</button></div>
+        <div class="hero-actions"><button class="secondary" id="diagnostics-button">Export diagnostics</button><button class="secondary" id="refresh-button">Refresh</button><button class="primary" id="launch-button">Open Harness</button></div>
       </div>
       <div id="notice" class="notice hidden"></div>
       <div class="environment-strip" id="environment-strip"><span>Inspecting local environment…</span></div>
@@ -53,6 +55,20 @@ app.innerHTML = `
       <p class="hint">Version 0.1 accepts loopback URLs only. Arguments are separated by spaces; quoted argument editing is planned.</p>
       <div class="dialog-actions"><button value="cancel" class="secondary">Cancel</button><button value="default" class="primary" id="save-settings">Save settings</button></div>
     </form>
+  </dialog>
+  <dialog id="setup-dialog" class="setup-dialog">
+    <div class="setup-content">
+      <div class="setup-heading"><div class="mark">LS</div><div><p class="eyebrow">FIRST-RUN SETUP</p><h2>Connect your local agent stack</h2></div></div>
+      <p class="setup-intro">Local Agent Stack keeps Ollama and Harness separately installed. This checklist detects them, creates an update-safe Harness profile, and verifies the local endpoints.</p>
+      <div class="setup-summary" id="setup-summary">Inspecting this computer…</div>
+      <div class="setup-steps">
+        <article><span>1</span><div><strong>Review runtime settings</strong><p>Confirm loopback URLs, executable paths, and Harness home.</p><button class="secondary" id="setup-settings" type="button">Open settings</button></div></article>
+        <article><span>2</span><div><strong>Prepare Harness profile</strong><p>Clone and validate an isolated profile without modifying the stock web profile.</p><button class="secondary" id="setup-profile" type="button">Prepare profile</button><small id="setup-profile-result"></small></div></article>
+        <article><span>3</span><div><strong>Install companion</strong><p>Add the versioned read-only <code>/local-stack</code> command bundle.</p><button class="secondary" id="setup-companion" type="button">Install companion</button><small id="setup-companion-result"></small></div></article>
+        <article><span>4</span><div><strong>Verify health</strong><p>Refresh service, GPU, model, and local toolchain state.</p><button class="primary" id="setup-verify" type="button">Run health check</button><small id="setup-verify-result"></small></div></article>
+      </div>
+      <div class="dialog-actions"><button class="secondary" id="setup-later" type="button">Set up later</button><button class="primary" id="setup-finish" type="button" disabled>Finish setup</button></div>
+    </div>
   </dialog>
 `;
 
@@ -125,6 +141,11 @@ async function refresh(): Promise<void> {
     snapshot = await invoke<StackSnapshot>("get_snapshot");
     config ??= await invoke<StackConfig>("get_config");
     render();
+    updateSetupSummary();
+    if (!config.setupCompleted && !onboardingShown && !dialog.open && !setupDialog.open) {
+      onboardingShown = true;
+      setupDialog.showModal();
+    }
   } catch (error) {
     notify(String(error), true);
   }
@@ -197,6 +218,9 @@ function selectView(name: string): void {
 }
 
 $("#refresh-button").addEventListener("click", refresh);
+$("#diagnostics-button").addEventListener("click", () => {
+  void runAction(() => invoke<ActionResult>("export_diagnostics"));
+});
 $("#launch-button").addEventListener("click", () => selectView("workspace"));
 document.querySelectorAll<HTMLButtonElement>(".nav").forEach((button) => button.addEventListener("click", () => selectView(button.dataset.view ?? "dashboard")));
 
@@ -210,7 +234,9 @@ $("#pull-form").addEventListener("submit", async (event) => {
 });
 
 const dialog = $("#settings-dialog") as HTMLDialogElement;
-$("#settings-button").addEventListener("click", async () => {
+const setupDialog = $("#setup-dialog") as HTMLDialogElement;
+
+async function openSettings(): Promise<void> {
   config = await invoke<StackConfig>("get_config");
   ($("#ollama-url") as HTMLInputElement).value = config.ollama.url;
   ($("#ollama-command") as HTMLInputElement).value = config.ollama.command ?? "";
@@ -220,7 +246,9 @@ $("#settings-button").addEventListener("click", async () => {
   ($("#harness-args") as HTMLInputElement).value = config.harness.args.join(" ");
   ($("#harness-profile") as HTMLInputElement).value = config.harnessProfile;
   dialog.showModal();
-});
+}
+
+$("#settings-button").addEventListener("click", openSettings);
 
 $("#settings-form").addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -230,10 +258,87 @@ $("#settings-form").addEventListener("submit", async (event) => {
     harness: { ...config.harness, url: ($("#harness-url") as HTMLInputElement).value.trim(), command: ($("#harness-command") as HTMLInputElement).value.trim() || undefined, args: ($("#harness-args") as HTMLInputElement).value.trim().split(/\s+/).filter(Boolean) },
     harnessHome: ($("#harness-home") as HTMLInputElement).value.trim() || undefined,
     harnessProfile: ($("#harness-profile") as HTMLInputElement).value.trim(),
+    setupCompleted: config.setupCompleted,
   };
   await runAction(() => invoke<ActionResult>("save_config", { config: updated }));
   config = updated;
   dialog.close();
+  if (!updated.setupCompleted) setupDialog.showModal();
+});
+
+function updateSetupSummary(): void {
+  if (!snapshot) return;
+  const gpu = snapshot.environment.gpus[0];
+  const detected = [
+    snapshot.environment.ollamaPath ? "Ollama detected" : "Ollama not detected",
+    snapshot.environment.harnessPath ? "Harness detected" : "Harness not detected",
+    gpu ? `${gpu.name} · ${(gpu.memoryTotalMib / 1024).toFixed(1)} GB VRAM` : "No NVIDIA GPU detected",
+  ];
+  $("#setup-summary").textContent = detected.join("  •  ");
+}
+
+async function runSetupCommand(
+  command: string,
+  buttonSelector: string,
+  resultSelector: string,
+): Promise<void> {
+  if (busy) return;
+  const button = $(buttonSelector) as HTMLButtonElement;
+  const result = $(resultSelector);
+  busy = true;
+  button.disabled = true;
+  result.textContent = "Working…";
+  result.className = "working";
+  try {
+    const response = await invoke<ActionResult>(command);
+    result.textContent = response.message;
+    result.className = response.ok ? "complete" : "failed";
+    await refresh();
+  } catch (error) {
+    result.textContent = String(error);
+    result.className = "failed";
+  } finally {
+    busy = false;
+    button.disabled = false;
+  }
+}
+
+$("#setup-settings").addEventListener("click", () => {
+  setupDialog.close();
+  void openSettings();
+});
+$("#setup-profile").addEventListener("click", () => {
+  void runSetupCommand("prepare_harness_profile", "#setup-profile", "#setup-profile-result");
+});
+$("#setup-companion").addEventListener("click", () => {
+  void runSetupCommand("install_harness_companion", "#setup-companion", "#setup-companion-result");
+});
+$("#setup-verify").addEventListener("click", async () => {
+  if (busy) return;
+  const result = $("#setup-verify-result");
+  result.textContent = "Checking services and hardware…";
+  result.className = "working";
+  await refresh();
+  setupVerified = true;
+  result.textContent = `Health check complete · Ollama ${snapshot?.ollama.state ?? "unknown"} · Harness ${snapshot?.harness.state ?? "unknown"}`;
+  result.className = "complete";
+  ($("#setup-finish") as HTMLButtonElement).disabled = false;
+});
+$("#setup-later").addEventListener("click", () => setupDialog.close());
+$("#setup-finish").addEventListener("click", async () => {
+  if (!setupVerified || busy) return;
+  busy = true;
+  try {
+    const result = await invoke<ActionResult>("complete_setup");
+    if (config) config.setupCompleted = true;
+    setupDialog.close();
+    notify(result.message, !result.ok);
+  } catch (error) {
+    $("#setup-verify-result").textContent = String(error);
+    $("#setup-verify-result").className = "failed";
+  } finally {
+    busy = false;
+  }
 });
 
 void refresh();

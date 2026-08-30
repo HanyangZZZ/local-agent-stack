@@ -71,6 +71,7 @@ export interface StackConfig {
   harness: ServiceConfig;
   harnessHome?: string;
   harnessProfile: string;
+  setupCompleted: boolean;
 }
 
 export interface ActionResult {

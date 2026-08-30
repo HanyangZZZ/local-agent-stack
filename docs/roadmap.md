@@ -10,7 +10,7 @@
 - [x] Embedded Harness workspace.
 - [x] Streaming model-pull progress.
 - [x] NVIDIA driver and GPU diagnostics.
-- [ ] Redacted diagnostic bundle export.
+- [x] Redacted diagnostic bundle export.
 - [ ] Signed Windows installer.
 
 ## 0.2 — Safe Harness configuration
@@ -19,7 +19,7 @@
 - [x] Transactional profile bootstrap with Harness-native validation and cleanup.
 - [x] Prebuilt, versioned Harness companion bundle with one-click installation.
 - Version compatibility manifest and upgrade warnings.
-- Guided first-run setup.
+- [x] Guided first-run setup.
 
 ## 0.3 — Managed installations and more platforms
 

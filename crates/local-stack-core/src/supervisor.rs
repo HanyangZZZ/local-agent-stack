@@ -16,7 +16,7 @@ use tokio::{
 
 use crate::{
     ActionResult, ConfigStore, OllamaClient, PullProgress, Result, ServiceKind, ServiceSnapshot,
-    ServiceState, StackConfig, StackError, StackSnapshot, inspect_environment,
+    ServiceState, StackConfig, StackError, StackSnapshot, export_diagnostics, inspect_environment,
 };
 
 const HARNESS_COMPANION_URL: &str = "https://github.com/HanyangZZZ/local-agent-stack/releases/download/v0.1.0-alpha.2/local-agent-stack-harness-companion-0.1.0-alpha.2.tgz";
@@ -57,6 +57,29 @@ impl StackSupervisor {
         Ok(ActionResult::success("Configuration saved"))
     }
 
+    pub async fn complete_setup(&self) -> Result<ActionResult> {
+        let mut config = self.config().await;
+        config.setup_completed = true;
+        self.store.save(&config).await?;
+        *self.config.write().await = config;
+        Ok(ActionResult::success("First-run setup completed"))
+    }
+
+    pub async fn export_diagnostic_report(&self) -> Result<ActionResult> {
+        let config = self.config().await;
+        let snapshot = self.snapshot().await?;
+        let fallback = self
+            .store
+            .path()
+            .parent()
+            .ok_or_else(|| StackError::Config("configuration path has no parent".into()))?;
+        let path = export_diagnostics(snapshot, &config, fallback).await?;
+        Ok(ActionResult::success(format!(
+            "Diagnostics exported to {}",
+            path.display()
+        )))
+    }
+
     pub async fn snapshot(&self) -> Result<StackSnapshot> {
         self.reap_exited().await;
         let config = self.config().await;
@@ -80,7 +103,22 @@ impl StackSupervisor {
         } else {
             Vec::new()
         };
-        let environment = inspect_environment().await;
+        let mut environment = inspect_environment().await;
+        if environment.ollama_path.is_none() {
+            environment.ollama_path = config.ollama.command.clone();
+        }
+        if environment.harness_path.is_none() {
+            environment.harness_path = config.harness.command.clone();
+        }
+        if environment.node_path.is_none()
+            && let Some(command) = config.harness.command.as_deref()
+            && let Some(parent) = Path::new(command).parent()
+        {
+            let node = parent.join(if cfg!(windows) { "node.exe" } else { "node" });
+            if node.is_file() {
+                environment.node_path = Some(node.display().to_string());
+            }
+        }
 
         Ok(StackSnapshot {
             ollama: ServiceSnapshot {

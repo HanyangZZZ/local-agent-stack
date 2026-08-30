@@ -9,7 +9,7 @@ The initial Windows release manages:
 - Ollama health, installed models, running models, VRAM use, downloads and unloads.
 - DeepSeek Harness health and a dedicated, app-managed launch process.
 - An update-safe Harness profile and optional `/local-stack` companion command.
-- Local environment diagnostics and editable runtime configuration.
+- Guided first-run setup, editable runtime configuration, and redacted diagnostics.
 - An embedded Harness workspace that remains separate from the control plane.
 
 > [!IMPORTANT]
@@ -64,6 +64,12 @@ To create or validate the configured update-safe Harness profile:
 cargo run -p local-stack-core --example prepare_profile
 ```
 
+To export a support report without prompts, logs, credentials, or full paths:
+
+```powershell
+cargo run -p local-stack-core --example export_diagnostics
+```
+
 Ollama and DeepSeek Harness remain optional during development. The dashboard
 will report them as unavailable rather than failing to launch.
 
@@ -78,6 +84,16 @@ The app stores its machine-local configuration outside the repository:
 Defaults are `http://127.0.0.1:11434` for Ollama and
 `http://127.0.0.1:3000` for Harness. Commands and arguments can be changed in
 the Settings panel.
+
+On first launch, the setup checklist reviews those settings, prepares the
+isolated profile, installs the companion, and runs a local health check. Every
+step can be retried independently; choosing **Set up later** leaves runtimes
+untouched.
+
+The **Export diagnostics** action writes a timestamped JSON report to the
+current user's Downloads directory. It includes service, model, GPU, driver,
+and tool availability, but replaces full paths with executable names and omits
+process messages, command arguments, logs, prompts, and credentials.
 
 The managed Harness workflow is available from the Harness service card:
 

@@ -22,6 +22,8 @@ pub struct StackConfig {
     #[serde(default)]
     pub harness_home: Option<String>,
     pub harness_profile: String,
+    #[serde(default)]
+    pub setup_completed: bool,
 }
 
 impl Default for StackConfig {
@@ -46,6 +48,7 @@ impl Default for StackConfig {
             },
             harness_home: None,
             harness_profile: "local-agent-stack".into(),
+            setup_completed: false,
         }
     }
 }

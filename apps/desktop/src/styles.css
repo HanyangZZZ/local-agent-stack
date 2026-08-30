@@ -78,6 +78,22 @@ dialog form { padding: 23px; display: grid; gap: 14px; }
 dialog label { display: grid; gap: 6px; color: #abb5c0; font-size: 11px; font-weight: 700; }
 .dialog-actions { justify-content: end; margin-top: 7px; }
 .hint { color: #6f7b88; font-size: 10px; line-height: 1.5; margin: 0; }
+.setup-dialog { width: min(760px, calc(100vw - 60px)); max-height: calc(100vh - 60px); overflow: auto; }
+.setup-content { padding: 26px; }
+.setup-heading { display: flex; align-items: center; gap: 13px; }
+.setup-heading h2 { font-size: 22px; }
+.setup-intro { color: #8f9aa7; font-size: 12px; line-height: 1.6; margin: 18px 0 13px; }
+.setup-summary { padding: 11px 13px; color: #b7c3cf; background: #0d1217; border: 1px solid #29333d; border-radius: 9px; font-size: 11px; }
+.setup-steps { display: grid; gap: 9px; margin: 14px 0 17px; }
+.setup-steps article { display: grid; grid-template-columns: 32px 1fr; gap: 12px; padding: 14px; background: #171d24; border: 1px solid #2b343e; border-radius: 11px; }
+.setup-steps article > span { width: 28px; height: 28px; display: grid; place-items: center; color: #75e5ba; background: #163329; border: 1px solid #285b48; border-radius: 50%; font-size: 11px; font-weight: 900; }
+.setup-steps strong { display: block; font-size: 13px; }
+.setup-steps p { color: #768391; font-size: 11px; line-height: 1.45; margin: 4px 0 10px; }
+.setup-steps small { display: block; line-height: 1.45; margin-top: 8px; overflow-wrap: anywhere; }
+.setup-steps small.working { color: #c6bdff; }
+.setup-steps small.complete { color: #77e2b8; }
+.setup-steps small.failed { color: #ff9a9a; }
+.setup-steps code { color: #b9afff; background: #211d33; border-radius: 4px; padding: 1px 4px; }
 .busy { cursor: progress; }
 .skeleton { height: 220px; border-radius: 16px; background: linear-gradient(90deg,#151a20,#202730,#151a20); background-size: 200%; animation: pulse 1.4s infinite; }
 @keyframes pulse { to { background-position: -200% 0; } }
