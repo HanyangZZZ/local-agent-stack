@@ -1,4 +1,6 @@
-use local_stack_core::{ActionResult, ServiceKind, StackConfig, StackSnapshot, StackSupervisor};
+use local_stack_core::{
+    ActionResult, RuntimeInstallProgress, ServiceKind, StackConfig, StackSnapshot, StackSupervisor,
+};
 use tauri::{AppHandle, Emitter, State};
 
 struct AppState(StackSupervisor);
@@ -115,6 +117,29 @@ async fn install_harness_companion(state: State<'_, AppState>) -> Result<ActionR
 }
 
 #[tauri::command]
+async fn install_managed_ollama(
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<ActionResult, String> {
+    state
+        .0
+        .install_managed_ollama_with_progress(move |progress: RuntimeInstallProgress| {
+            let _ = app.emit("runtime-install-progress", progress);
+        })
+        .await
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+async fn rollback_managed_ollama(state: State<'_, AppState>) -> Result<ActionResult, String> {
+    state
+        .0
+        .rollback_managed_ollama()
+        .await
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
 async fn install_managed_harness(state: State<'_, AppState>) -> Result<ActionResult, String> {
     state
         .0
@@ -168,6 +193,8 @@ pub fn run() {
             delete_model,
             prepare_harness_profile,
             install_harness_companion,
+            install_managed_ollama,
+            rollback_managed_ollama,
             install_managed_harness,
             rollback_managed_harness,
             complete_setup,

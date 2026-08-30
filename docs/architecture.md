@@ -13,17 +13,28 @@ the supervisor remains usable when Harness is stopped or broken.
 
 ## Bring-your-own and managed installations
 
-Version 0.1 implements bring-your-own installation discovery and an app-owned
-Harness import. The import copies an already installed, manifest-tested Harness
-package and Node executable into a unique release directory, validates the
-copied CLI, atomically activates a state pointer, and keeps the previous release
-for rollback. The external installation remains untouched. Ollama remains
-bring-your-own until verified artifact download and extraction are implemented.
+Version 0.1 implements bring-your-own installation discovery, an app-owned
+Harness import, and a verified app-owned Ollama installer. The Harness import
+copies an already installed, manifest-tested package and Node executable into a
+unique release directory, validates the copied CLI, atomically activates a state
+pointer, and keeps the previous release for rollback. The external installation
+remains untouched.
+
+The Ollama installer selects an OS/architecture-specific artifact from the
+embedded release manifest, requires an allowlisted official HTTPS origin,
+preflights disk space, streams the archive while hashing it, and rejects size or
+SHA-256 mismatches. Extraction rejects path traversal and symbolic links,
+enforces an extracted-size ceiling, and writes into a unique staging directory.
+The staged executable must report the expected version before the same atomic
+release-pointer mechanism can activate it. Download, validation, or extraction
+failure cannot replace the current runtime.
 
 Managed runtime staging accepts only direct children of the app-owned staging
 root. Executable paths and release identifiers are validated as relative path
 components before use. Unsupported links or special files abort an import, and
-failed validation removes only the transaction's staging directory.
+failed validation removes only the transaction's staging directory. Stale
+app-owned staging transactions are cleaned up on a later launch without touching
+active or previous releases.
 
 ## Service lifecycle
 

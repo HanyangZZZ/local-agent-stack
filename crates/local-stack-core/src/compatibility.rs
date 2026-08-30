@@ -11,6 +11,23 @@ pub struct CompatibilityManifest {
     pub schema_version: u32,
     pub updated_at: String,
     pub components: Vec<ComponentRequirement>,
+    #[serde(default)]
+    pub artifacts: Vec<RuntimeArtifact>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RuntimeArtifact {
+    pub kind: ServiceKind,
+    pub version: Version,
+    pub operating_system: String,
+    pub architecture: String,
+    pub url: String,
+    pub sha256: String,
+    pub download_size: u64,
+    pub maximum_extracted_size: u64,
+    pub archive_format: String,
+    pub executable_relative_path: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -78,6 +95,26 @@ pub fn assess_versions(
         manifest_updated_at: manifest.updated_at,
         components,
     })
+}
+
+pub fn embedded_artifact(
+    kind: ServiceKind,
+    operating_system: &str,
+    architecture: &str,
+) -> Result<RuntimeArtifact> {
+    embedded_manifest()?
+        .artifacts
+        .into_iter()
+        .find(|artifact| {
+            artifact.kind == kind
+                && artifact.operating_system == operating_system
+                && artifact.architecture == architecture
+        })
+        .ok_or_else(|| {
+            StackError::Config(format!(
+                "no verified {kind} artifact is available for {operating_system}/{architecture}"
+            ))
+        })
 }
 
 fn assess_component(
@@ -154,6 +191,18 @@ mod tests {
                 .components
                 .iter()
                 .all(|component| component.state == CompatibilityState::Unknown)
+        );
+    }
+
+    #[test]
+    fn selects_the_verified_windows_ollama_artifact() {
+        let artifact = embedded_artifact(ServiceKind::Ollama, "windows", "x86_64").unwrap();
+        assert_eq!(artifact.version, Version::new(0, 33, 2));
+        assert_eq!(artifact.sha256.len(), 64);
+        assert!(
+            artifact
+                .url
+                .starts_with("https://github.com/ollama/ollama/")
         );
     }
 }

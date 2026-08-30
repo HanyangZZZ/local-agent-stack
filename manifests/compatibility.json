@@ -18,5 +18,19 @@
       "recommendedVersion": "0.1.1-rc.2",
       "source": "https://www.npmjs.com/package/@deepseek-ai/dsh/v/0.1.1-rc.2"
     }
+  ],
+  "artifacts": [
+    {
+      "kind": "ollama",
+      "version": "0.33.2",
+      "operatingSystem": "windows",
+      "architecture": "x86_64",
+      "url": "https://github.com/ollama/ollama/releases/download/v0.33.2/ollama-windows-amd64.zip",
+      "sha256": "2439cbea65310b1aadf7d8fc41d7faf5d033f920d42e00a476c58bf9bff6950e",
+      "downloadSize": 1460134793,
+      "maximumExtractedSize": 8000000000,
+      "archiveFormat": "zip",
+      "executableRelativePath": "ollama.exe"
+    }
   ]
 }

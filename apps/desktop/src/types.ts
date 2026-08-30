@@ -33,6 +33,7 @@ export interface StackSnapshot {
   runningModels: RunningModel[];
   environment: EnvironmentSnapshot;
   compatibility: CompatibilityReport;
+  managedOllama: ManagedRuntimeStatus;
   managedHarness: ManagedRuntimeStatus;
   configPath: string;
 }
@@ -84,6 +85,14 @@ export interface PullProgress {
   digest?: string;
   total?: number;
   completed?: number;
+}
+
+export interface RuntimeInstallProgress {
+  kind: ServiceKind;
+  stage: string;
+  completed: number;
+  total: number;
+  message: string;
 }
 
 export interface ServiceConfig {

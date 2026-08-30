@@ -24,10 +24,18 @@
 ## 0.3 — Managed installations and more platforms
 
 - [x] App-owned, versioned Harness import with validation and rollback.
-- App-owned, pinned Ollama installation.
-- Verified runtime downloads and atomic upgrades.
+- [x] App-owned, pinned Ollama installation.
+- [x] Verified runtime downloads, secure extraction and atomic activation.
+- [x] Managed-runtime rollback and stale staging cleanup.
 - macOS and Linux builds.
 - Background tray supervisor and verified PID reattachment.
+
+## 0.4 — Trusted distribution
+
+- Signed compatibility/artifact manifests with key rotation.
+- Signed Windows installers and binaries.
+- In-app self-update with signature verification and release notes.
+- Download cancellation and resumable large runtime payloads.
 
 ## Later
 

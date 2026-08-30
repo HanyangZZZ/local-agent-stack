@@ -1,6 +1,6 @@
 use std::{
     path::{Component, Path, PathBuf},
-    time::{SystemTime, UNIX_EPOCH},
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
 use directories::ProjectDirs;
@@ -88,6 +88,32 @@ impl ManagedRuntimeStore {
             fs::remove_dir_all(staging).await?;
         }
         Ok(())
+    }
+
+    pub async fn cleanup_staging_older_than(
+        &self,
+        kind: ServiceKind,
+        maximum_age: Duration,
+    ) -> Result<usize> {
+        let root = self.component_dir(kind).join("staging");
+        fs::create_dir_all(&root).await?;
+        let now = SystemTime::now();
+        let mut removed = 0;
+        let mut entries = fs::read_dir(&root).await?;
+        while let Some(entry) = entries.next_entry().await? {
+            if !entry.file_type().await?.is_dir() {
+                continue;
+            }
+            let modified = entry.metadata().await?.modified()?;
+            let age = now.duration_since(modified).unwrap_or_default();
+            if age < maximum_age {
+                continue;
+            }
+            self.validate_staging_path(kind, &entry.path()).await?;
+            fs::remove_dir_all(entry.path()).await?;
+            removed += 1;
+        }
+        Ok(removed)
     }
 
     pub async fn activate_staging(

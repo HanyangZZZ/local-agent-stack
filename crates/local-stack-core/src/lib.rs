@@ -1,3 +1,4 @@
+mod artifact;
 mod compatibility;
 mod config;
 mod diagnostics;
@@ -8,9 +9,10 @@ mod ollama;
 mod supervisor;
 mod types;
 
+pub use artifact::{RuntimeInstallProgress, download_and_extract_verified};
 pub use compatibility::{
     CompatibilityManifest, CompatibilityReport, CompatibilityState, ComponentCompatibility,
-    ComponentRequirement, assess_versions, embedded_manifest,
+    ComponentRequirement, RuntimeArtifact, assess_versions, embedded_artifact, embedded_manifest,
 };
 pub use config::{ConfigStore, StackConfig};
 pub use diagnostics::export_diagnostics;

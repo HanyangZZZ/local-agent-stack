@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import "./styles.css";
-import type { ActionResult, PullProgress, ServiceKind, ServiceSnapshot, StackConfig, StackSnapshot } from "./types";
+import type { ActionResult, PullProgress, RuntimeInstallProgress, ServiceKind, ServiceSnapshot, StackConfig, StackSnapshot } from "./types";
 
 const app = document.querySelector<HTMLDivElement>("#app");
 if (!app) throw new Error("Application root is missing");
@@ -61,14 +61,15 @@ app.innerHTML = `
   <dialog id="setup-dialog" class="setup-dialog">
     <div class="setup-content">
       <div class="setup-heading"><div class="mark">LS</div><div><p class="eyebrow">FIRST-RUN SETUP</p><h2>Connect your local agent stack</h2></div></div>
-      <p class="setup-intro">Local Agent Stack keeps Ollama and Harness separately installed. This checklist detects them, creates an update-safe Harness profile, and verifies the local endpoints.</p>
+      <p class="setup-intro">Local Agent Stack can adopt independently installed runtimes or keep verified app-owned releases. This checklist prepares both services and verifies the local endpoints.</p>
       <div class="setup-summary" id="setup-summary">Inspecting this computer…</div>
       <div class="setup-steps">
         <article><span>1</span><div><strong>Review runtime settings</strong><p>Confirm loopback URLs, executable paths, and Harness home.</p><button class="secondary" id="setup-settings" type="button">Open settings</button></div></article>
-        <article><span>2</span><div><strong>Install managed Harness</strong><p>Install the tested release into app-owned storage. Your external installation remains untouched.</p><button class="secondary" id="setup-managed" type="button">Install managed Harness</button><small id="setup-managed-result"></small></div></article>
-        <article><span>3</span><div><strong>Prepare Harness profile</strong><p>Clone and validate an isolated profile without modifying the stock web profile.</p><button class="secondary" id="setup-profile" type="button">Prepare profile</button><small id="setup-profile-result"></small></div></article>
-        <article><span>4</span><div><strong>Install companion</strong><p>Add the versioned read-only <code>/local-stack</code> command bundle.</p><button class="secondary" id="setup-companion" type="button">Install companion</button><small id="setup-companion-result"></small></div></article>
-        <article><span>5</span><div><strong>Verify health</strong><p>Refresh service, GPU, model, and local toolchain state.</p><button class="primary" id="setup-verify" type="button">Run health check</button><small id="setup-verify-result"></small></div></article>
+        <article><span>2</span><div><strong>Install verified Ollama</strong><p>Download the official 1.36 GB Windows archive, verify SHA-256, and activate it in app-owned storage.</p><button class="secondary" id="setup-ollama" type="button">Install managed Ollama</button><small id="setup-ollama-result"></small></div></article>
+        <article><span>3</span><div><strong>Install managed Harness</strong><p>Import the tested release into app-owned storage. Your external installation remains untouched.</p><button class="secondary" id="setup-managed" type="button">Import managed Harness</button><small id="setup-managed-result"></small></div></article>
+        <article><span>4</span><div><strong>Prepare Harness profile</strong><p>Clone and validate an isolated profile without modifying the stock web profile.</p><button class="secondary" id="setup-profile" type="button">Prepare profile</button><small id="setup-profile-result"></small></div></article>
+        <article><span>5</span><div><strong>Install companion</strong><p>Add the versioned read-only <code>/local-stack</code> command bundle.</p><button class="secondary" id="setup-companion" type="button">Install companion</button><small id="setup-companion-result"></small></div></article>
+        <article><span>6</span><div><strong>Verify health</strong><p>Refresh service, GPU, model, and local toolchain state.</p><button class="primary" id="setup-verify" type="button">Run health check</button><small id="setup-verify-result"></small></div></article>
       </div>
       <div class="dialog-actions"><button class="secondary" id="setup-later" type="button">Set up later</button><button class="primary" id="setup-finish" type="button" disabled>Finish setup</button></div>
     </div>
@@ -120,10 +121,11 @@ function render(): void {
       <span class="compatibility-state">${component.state}</span>
       <div><strong>${component.displayName} ${component.detectedVersion ?? "version unknown"}</strong><small>${component.message} · Recommended ${component.recommendedVersion}</small></div>
     </div>`).join("");
+  const managedOllama = snapshot.managedOllama;
   const managedHarness = snapshot.managedHarness;
   $("#runtime-management").innerHTML = `
-    <div><p class="eyebrow">APP-OWNED RUNTIME</p><strong>${managedHarness.installed ? `Harness ${managedHarness.currentVersion}` : "Harness is externally installed"}</strong><span>${managedHarness.installed ? `Versioned release active${managedHarness.previousVersion ? ` · Previous ${managedHarness.previousVersion}` : ""}` : "Install a tested copy without modifying the existing Harness installation."}</span></div>
-    <div class="runtime-actions"><button class="secondary" id="install-managed-harness">${managedHarness.installed ? "Install tested release" : "Install managed Harness"}</button><button class="secondary" id="rollback-managed-harness" ${managedHarness.canRollback ? "" : "disabled"}>Rollback</button></div>`;
+    <div class="runtime-item"><div><p class="eyebrow">APP-OWNED OLLAMA</p><strong>${managedOllama.installed ? `Ollama ${managedOllama.currentVersion}` : "No managed Ollama release"}</strong><span>${managedOllama.installed ? `Verified release active${managedOllama.previousVersion ? ` · Previous ${managedOllama.previousVersion}` : ""}` : "Official archive · 1.36 GB download · SHA-256 verified"}</span></div><div class="runtime-actions"><button class="secondary" id="install-managed-ollama">${managedOllama.installed ? "Reinstall verified release" : "Install verified Ollama"}</button><button class="secondary" id="rollback-managed-ollama" ${managedOllama.canRollback ? "" : "disabled"}>Rollback</button></div></div>
+    <div class="runtime-item"><div><p class="eyebrow">APP-OWNED HARNESS</p><strong>${managedHarness.installed ? `Harness ${managedHarness.currentVersion}` : "Harness is externally installed"}</strong><span>${managedHarness.installed ? `Versioned release active${managedHarness.previousVersion ? ` · Previous ${managedHarness.previousVersion}` : ""}` : "Import a tested copy without modifying the existing Harness installation."}</span></div><div class="runtime-actions"><button class="secondary" id="install-managed-harness">${managedHarness.installed ? "Re-import tested release" : "Import managed Harness"}</button><button class="secondary" id="rollback-managed-harness" ${managedHarness.canRollback ? "" : "disabled"}>Rollback</button></div></div>`;
 
   const running = new Map(snapshot.runningModels.map((model) => [model.name, model]));
   $("#models").innerHTML = snapshot.installedModels.length
@@ -143,6 +145,14 @@ function render(): void {
   });
   $("#install-managed-harness").addEventListener("click", () => {
     void runAction(() => invoke<ActionResult>("install_managed_harness"));
+  });
+  $("#install-managed-ollama").addEventListener("click", () => {
+    if (!window.confirm("Download and install the verified 1.36 GB Ollama archive? The safety preflight requires about 9.5 GB of free disk space.")) return;
+    void runAction(() => invoke<ActionResult>("install_managed_ollama"));
+  });
+  $("#rollback-managed-ollama").addEventListener("click", () => {
+    if (!window.confirm("Switch Ollama back to the previous app-owned release?")) return;
+    void runAction(() => invoke<ActionResult>("rollback_managed_ollama"));
   });
   $("#rollback-managed-harness").addEventListener("click", () => {
     if (!window.confirm("Switch Harness back to the previous app-owned release?")) return;
@@ -212,6 +222,15 @@ void listen<PullProgress>("ollama-pull-progress", ({ payload }) => {
     ? ` · ${Math.min(100, Math.round(payload.completed / payload.total * 100))}%`
     : "";
   notice.textContent = `${payload.status}${percent}`;
+  notice.className = "notice progress";
+});
+
+void listen<RuntimeInstallProgress>("runtime-install-progress", ({ payload }) => {
+  const notice = $("#notice");
+  const percent = payload.total
+    ? ` · ${Math.min(100, Math.round(payload.completed / payload.total * 100))}%`
+    : "";
+  notice.textContent = `${payload.message}${percent}`;
   notice.className = "notice progress";
 });
 
@@ -293,6 +312,7 @@ function updateSetupSummary(): void {
   const gpu = snapshot.environment.gpus[0];
   const detected = [
     snapshot.environment.ollamaPath ? "Ollama detected" : "Ollama not detected",
+    snapshot.managedOllama.installed ? `Managed Ollama ${snapshot.managedOllama.currentVersion}` : "External Ollama mode",
     snapshot.environment.harnessPath ? "Harness detected" : "Harness not detected",
     snapshot.managedHarness.installed ? `Managed Harness ${snapshot.managedHarness.currentVersion}` : "External Harness mode",
     gpu ? `${gpu.name} · ${(gpu.memoryTotalMib / 1024).toFixed(1)} GB VRAM` : "No NVIDIA GPU detected",
@@ -336,6 +356,10 @@ $("#setup-profile").addEventListener("click", () => {
 });
 $("#setup-managed").addEventListener("click", () => {
   void runSetupCommand("install_managed_harness", "#setup-managed", "#setup-managed-result");
+});
+$("#setup-ollama").addEventListener("click", () => {
+  if (!window.confirm("Download and install the verified 1.36 GB Ollama archive? The safety preflight requires about 9.5 GB of free disk space.")) return;
+  void runSetupCommand("install_managed_ollama", "#setup-ollama", "#setup-ollama-result");
 });
 $("#setup-companion").addEventListener("click", () => {
   void runSetupCommand("install_harness_companion", "#setup-companion", "#setup-companion-result");

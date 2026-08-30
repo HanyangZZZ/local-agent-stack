@@ -1,12 +1,13 @@
 # Local Agent Stack
 
 Local Agent Stack is an open-source desktop control plane for local AI coding
-agents. It discovers and manages separately installed runtimes instead of
-forking or bundling them.
+agents. It can discover separately installed runtimes or install verified,
+app-owned runtime releases without forking their upstream projects.
 
 The initial Windows release manages:
 
 - Ollama health, installed models, running models, VRAM use, downloads and unloads.
+- Verified, versioned Ollama installation with transactional activation and rollback.
 - DeepSeek Harness health and a dedicated, app-managed launch process.
 - An update-safe Harness profile and optional `/local-stack` companion command.
 - Guided first-run setup, editable runtime configuration, and redacted diagnostics.
@@ -79,6 +80,20 @@ cargo run -p local-stack-core --example install_managed_harness
 cargo run -p local-stack-core --example smoke_managed_harness
 ```
 
+To exercise the manifest-pinned Ollama installer from source, then verify its
+normal supervisor lifecycle:
+
+```powershell
+cargo run -p local-stack-core --example install_managed_ollama
+cargo run -p local-stack-core --example smoke_managed_ollama
+```
+
+The managed Ollama download is currently about 1.36 GB. The installer performs
+a conservative free-space preflight of about 9.5 GB, streams the payload to a
+staging directory, verifies its release-controlled SHA-256 digest, securely
+extracts it, checks the reported version, and only then switches the active
+release. A failed operation leaves the prior release and configuration active.
+
 Ollama and DeepSeek Harness remain optional during development. The dashboard
 will report them as unavailable rather than failing to launch.
 
@@ -87,7 +102,7 @@ will report them as unavailable rather than failing to launch.
 The app stores its machine-local configuration outside the repository:
 
 ```text
-%APPDATA%\dev.localagentstack\config\stack.json
+%APPDATA%\localagentstack\Local Agent Stack\config\stack.json
 ```
 
 Defaults are `http://127.0.0.1:11434` for Ollama and
@@ -104,7 +119,14 @@ current user's Downloads directory. It includes service, model, GPU, driver,
 and tool availability, but replaces full paths with executable names and omits
 process messages, command arguments, logs, prompts, and credentials.
 
-The managed Harness workflow is available from the Harness service card:
+Managed runtime workflows are available from **Runtime management**:
+
+1. **Install managed Ollama** downloads the pinned official Windows archive,
+   verifies its size and SHA-256 digest, extracts only safe paths into app-owned
+   versioned storage, validates `ollama --version`, and atomically activates it.
+2. **Rollback Ollama** switches back to the previous validated app-owned release.
+
+The managed Harness workflow continues from the Harness service card:
 
 1. **Install managed Harness** imports the tested external Harness package and
    a private Node executable into versioned app-owned storage. It validates the
@@ -116,7 +138,7 @@ The managed Harness workflow is available from the Harness service card:
 4. Start Harness from the control center and use `/local-stack` inside Harness
    to view runtime and GPU-memory status.
 
-Each managed import receives a distinct release directory. The current and
+Each managed install receives a distinct release directory. The current and
 previous releases remain side by side, and **Rollback** atomically switches the
 active pointer after confirming the previous executable still exists. Runtime
 state is stored under the operating system's local application-data directory;

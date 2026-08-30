@@ -16,8 +16,9 @@ use tokio::{
 
 use crate::{
     ActionResult, ConfigStore, ManagedRuntimeStore, OllamaClient, PullProgress, Result,
-    ServiceKind, ServiceSnapshot, ServiceState, StackConfig, StackError, StackSnapshot,
-    assess_versions, embedded_manifest, export_diagnostics, inspect_environment,
+    RuntimeInstallProgress, ServiceKind, ServiceSnapshot, ServiceState, StackConfig, StackError,
+    StackSnapshot, assess_versions, download_and_extract_verified, embedded_artifact,
+    embedded_manifest, export_diagnostics, inspect_environment,
 };
 
 const HARNESS_COMPANION_URL: &str = "https://github.com/HanyangZZZ/local-agent-stack/releases/download/v0.1.0-alpha.2/local-agent-stack-harness-companion-0.1.0-alpha.2.tgz";
@@ -28,6 +29,7 @@ pub struct StackSupervisor {
     config: Arc<RwLock<StackConfig>>,
     children: Arc<Mutex<HashMap<ServiceKind, Child>>>,
     http: reqwest::Client,
+    download_http: reqwest::Client,
     managed_runtimes: ManagedRuntimeStore,
 }
 
@@ -39,6 +41,12 @@ impl StackSupervisor {
 
     pub async fn new(store: ConfigStore) -> Result<Self> {
         let config = store.load().await?;
+        let managed_runtimes = ManagedRuntimeStore::discover()?;
+        for kind in [ServiceKind::Ollama, ServiceKind::Harness] {
+            let _ = managed_runtimes
+                .cleanup_staging_older_than(kind, Duration::from_secs(24 * 60 * 60))
+                .await;
+        }
         Ok(Self {
             store,
             config: Arc::new(RwLock::new(config)),
@@ -46,7 +54,10 @@ impl StackSupervisor {
             http: reqwest::Client::builder()
                 .timeout(Duration::from_secs(3))
                 .build()?,
-            managed_runtimes: ManagedRuntimeStore::discover()?,
+            download_http: reqwest::Client::builder()
+                .connect_timeout(Duration::from_secs(15))
+                .build()?,
+            managed_runtimes,
         })
     }
 
@@ -138,6 +149,7 @@ impl StackSupervisor {
             _ => None,
         };
         let compatibility = assess_versions(ollama_version.as_deref(), harness_version.as_deref())?;
+        let managed_ollama = self.managed_runtimes.status(ServiceKind::Ollama).await?;
         let managed_harness = self.managed_runtimes.status(ServiceKind::Harness).await?;
 
         Ok(StackSnapshot {
@@ -171,6 +183,7 @@ impl StackSupervisor {
             running_models,
             environment,
             compatibility,
+            managed_ollama,
             managed_harness,
             config_path: self.store.path().display().to_string(),
         })
@@ -296,6 +309,86 @@ impl StackSupervisor {
             .delete_model(model)
             .await?;
         Ok(ActionResult::success(format!("Deleted {model}")))
+    }
+
+    pub async fn install_managed_ollama_with_progress<F>(
+        &self,
+        mut on_progress: F,
+    ) -> Result<ActionResult>
+    where
+        F: FnMut(RuntimeInstallProgress) + Send,
+    {
+        let artifact = embedded_artifact(
+            ServiceKind::Ollama,
+            std::env::consts::OS,
+            std::env::consts::ARCH,
+        )?;
+        let version = artifact.version.to_string();
+        let staging = self
+            .managed_runtimes
+            .create_staging_directory(ServiceKind::Ollama, &version)
+            .await?;
+        let result = async {
+            let extracted = download_and_extract_verified(
+                &self.download_http,
+                &artifact,
+                &staging,
+                &mut on_progress,
+            )
+            .await?;
+            let detected = inspect_ollama_executable(&extracted).await?;
+            if !detected.contains(&version) {
+                return Err(StackError::Config(format!(
+                    "the staged Ollama reported {detected}, expected {version}"
+                )));
+            }
+            on_progress(RuntimeInstallProgress {
+                kind: ServiceKind::Ollama,
+                stage: "activating".into(),
+                completed: artifact.download_size,
+                total: artifact.download_size,
+                message: "Activating the verified Ollama release".into(),
+            });
+            self.managed_runtimes
+                .activate_staging(
+                    ServiceKind::Ollama,
+                    &version,
+                    &staging,
+                    Path::new(&artifact.executable_relative_path),
+                )
+                .await
+        }
+        .await;
+
+        let executable = match result {
+            Ok(executable) => executable,
+            Err(error) => {
+                let _ = self
+                    .managed_runtimes
+                    .abandon_staging(ServiceKind::Ollama, &staging)
+                    .await;
+                return Err(error);
+            }
+        };
+        let mut config = self.config().await;
+        config.ollama.command = Some(executable.display().to_string());
+        self.store.save(&config).await?;
+        *self.config.write().await = config;
+        Ok(ActionResult::success(format!(
+            "Installed and activated verified app-owned Ollama {version}; the previous managed release was preserved"
+        )))
+    }
+
+    pub async fn rollback_managed_ollama(&self) -> Result<ActionResult> {
+        let executable = self.managed_runtimes.rollback(ServiceKind::Ollama).await?;
+        let detected = inspect_ollama_executable(&executable).await?;
+        let mut config = self.config().await;
+        config.ollama.command = Some(executable.display().to_string());
+        self.store.save(&config).await?;
+        *self.config.write().await = config;
+        Ok(ActionResult::success(format!(
+            "Rolled back the app-owned Ollama to {detected}"
+        )))
     }
 
     pub async fn prepare_harness_profile(&self) -> Result<ActionResult> {
@@ -949,6 +1042,34 @@ async fn inspect_managed_harness_version(node: &str, entrypoint: &str) -> Result
         .ok_or_else(|| {
             StackError::Config("managed Harness version check returned no version".into())
         })
+}
+
+async fn inspect_ollama_executable(executable: &Path) -> Result<String> {
+    let mut command = Command::new(executable);
+    command.arg("--version").kill_on_drop(true);
+    #[cfg(windows)]
+    command.creation_flags(0x0800_0000);
+    let output = timeout(Duration::from_secs(10), command.output())
+        .await
+        .map_err(|_| StackError::Config("Ollama version check timed out".into()))??;
+    if !output.status.success() {
+        let detail = String::from_utf8_lossy(&output.stderr);
+        return Err(StackError::Config(format!(
+            "Ollama version check failed: {}",
+            detail.trim()
+        )));
+    }
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let detected = format!("{} {}", stdout.trim(), stderr.trim())
+        .trim()
+        .to_owned();
+    if detected.is_empty() {
+        return Err(StackError::Config(
+            "Ollama version check returned no version".into(),
+        ));
+    }
+    Ok(detected)
 }
 
 #[cfg(test)]

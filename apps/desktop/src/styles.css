@@ -44,8 +44,9 @@ button.ghost { background: transparent; border: 0; }
 .compatibility-item.compatible .compatibility-state { color: #78e4ba; background: #17352b; }
 .compatibility-item.outdated .compatibility-state { color: #ff9a9a; background: #3b1d20; }
 .compatibility-item.untested .compatibility-state { color: #ffd48c; background: #382c19; }
-.runtime-management { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 13px 15px; margin: -7px 0 16px; background: linear-gradient(90deg, #17162a, #12171d); border: 1px solid #373451; border-radius: 11px; }
-.runtime-management > div:first-child { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.runtime-management { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px; margin: -7px 0 16px; overflow: hidden; background: #373451; border: 1px solid #373451; border-radius: 11px; }
+.runtime-item { min-width: 0; padding: 13px 15px; display: flex; align-items: center; justify-content: space-between; gap: 14px; background: linear-gradient(90deg, #17162a, #12171d); }
+.runtime-item > div:first-child { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 .runtime-management .eyebrow { margin-bottom: 1px; color: #a99cff; }
 .runtime-management strong { font-size: 12px; }
 .runtime-management span { color: #788493; font-size: 10px; }
