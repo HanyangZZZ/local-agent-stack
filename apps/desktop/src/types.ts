@@ -53,6 +53,13 @@ export interface GpuSnapshot {
   memoryFreeMib: number;
 }
 
+export interface PullProgress {
+  status: string;
+  digest?: string;
+  total?: number;
+  completed?: number;
+}
+
 export interface ServiceConfig {
   url: string;
   command?: string;

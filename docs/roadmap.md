@@ -8,7 +8,7 @@
 - [x] Ollama pull, delete and immediate unload operations.
 - [x] Managed Ollama and Harness child-process start/stop/restart.
 - [x] Embedded Harness workspace.
-- [ ] Streaming model-pull progress.
+- [x] Streaming model-pull progress.
 - [x] NVIDIA driver and GPU diagnostics.
 - [ ] Redacted diagnostic bundle export.
 - [ ] Signed Windows installer.

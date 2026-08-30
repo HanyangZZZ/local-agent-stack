@@ -11,6 +11,6 @@ pub use error::{Result, StackError};
 pub use ollama::OllamaClient;
 pub use supervisor::StackSupervisor;
 pub use types::{
-    ActionResult, EnvironmentSnapshot, GpuSnapshot, InstalledModel, RunningModel, ServiceKind,
-    ServiceSnapshot, ServiceState, StackSnapshot,
+    ActionResult, EnvironmentSnapshot, GpuSnapshot, InstalledModel, PullProgress, RunningModel,
+    ServiceKind, ServiceSnapshot, ServiceState, StackSnapshot,
 };

@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import "./styles.css";
-import type { ActionResult, ServiceKind, ServiceSnapshot, StackConfig, StackSnapshot } from "./types";
+import type { ActionResult, PullProgress, ServiceKind, ServiceSnapshot, StackConfig, StackSnapshot } from "./types";
 
 const app = document.querySelector<HTMLDivElement>("#app");
 if (!app) throw new Error("Application root is missing");
@@ -155,6 +156,15 @@ function notify(message: string, error = false): void {
   notice.className = `notice ${error ? "error" : "success"}`;
   window.setTimeout(() => notice.classList.add("hidden"), 6000);
 }
+
+void listen<PullProgress>("ollama-pull-progress", ({ payload }) => {
+  const notice = $("#notice");
+  const percent = payload.total && payload.completed != null
+    ? ` · ${Math.min(100, Math.round(payload.completed / payload.total * 100))}%`
+    : "";
+  notice.textContent = `${payload.status}${percent}`;
+  notice.className = "notice progress";
+});
 
 function updateWorkspace(): void {
   if (!snapshot || !workspaceVisible) return;

@@ -8,8 +8,8 @@ use tokio::{
 };
 
 use crate::{
-    ActionResult, ConfigStore, OllamaClient, Result, ServiceKind, ServiceSnapshot, ServiceState,
-    StackConfig, StackError, StackSnapshot, inspect_environment,
+    ActionResult, ConfigStore, OllamaClient, PullProgress, Result, ServiceKind, ServiceSnapshot,
+    ServiceState, StackConfig, StackError, StackSnapshot, inspect_environment,
 };
 
 #[derive(Clone)]
@@ -187,9 +187,20 @@ impl StackSupervisor {
     }
 
     pub async fn pull_model(&self, model: &str) -> Result<ActionResult> {
+        self.pull_model_with_progress(model, |_| {}).await
+    }
+
+    pub async fn pull_model_with_progress<F>(
+        &self,
+        model: &str,
+        on_progress: F,
+    ) -> Result<ActionResult>
+    where
+        F: FnMut(PullProgress) + Send,
+    {
         let config = self.config().await;
         OllamaClient::new(config.ollama.url)?
-            .pull_model(model)
+            .pull_model_with_progress(model, on_progress)
             .await?;
         Ok(ActionResult::success(format!("Downloaded {model}")))
     }

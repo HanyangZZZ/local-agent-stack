@@ -1,5 +1,5 @@
 use local_stack_core::{ActionResult, ServiceKind, StackConfig, StackSnapshot, StackSupervisor};
-use tauri::State;
+use tauri::{AppHandle, Emitter, State};
 
 struct AppState(StackSupervisor);
 
@@ -64,10 +64,16 @@ async fn restart_service(
 }
 
 #[tauri::command]
-async fn pull_model(model: &str, state: State<'_, AppState>) -> Result<ActionResult, String> {
+async fn pull_model(
+    model: &str,
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<ActionResult, String> {
     state
         .0
-        .pull_model(model)
+        .pull_model_with_progress(model, move |progress| {
+            let _ = app.emit("ollama-pull-progress", progress);
+        })
         .await
         .map_err(|error| error.to_string())
 }
