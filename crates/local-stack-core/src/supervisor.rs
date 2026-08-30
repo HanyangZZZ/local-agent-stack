@@ -16,7 +16,8 @@ use tokio::{
 
 use crate::{
     ActionResult, ConfigStore, OllamaClient, PullProgress, Result, ServiceKind, ServiceSnapshot,
-    ServiceState, StackConfig, StackError, StackSnapshot, export_diagnostics, inspect_environment,
+    ServiceState, StackConfig, StackError, StackSnapshot, assess_versions, export_diagnostics,
+    inspect_environment,
 };
 
 const HARNESS_COMPANION_URL: &str = "https://github.com/HanyangZZZ/local-agent-stack/releases/download/v0.1.0-alpha.2/local-agent-stack-harness-companion-0.1.0-alpha.2.tgz";
@@ -91,6 +92,7 @@ impl StackSupervisor {
         );
 
         let ollama_online = ollama_version.is_ok();
+        let ollama_version = ollama_version.ok();
 
         let managed = self.managed_processes().await;
         let installed_models = if ollama_online {
@@ -119,6 +121,11 @@ impl StackSupervisor {
                 environment.node_path = Some(node.display().to_string());
             }
         }
+        let harness_version = match environment.harness_path.as_deref() {
+            Some(command) if is_harness_command(command) => inspect_cli_version(command).await,
+            _ => None,
+        };
+        let compatibility = assess_versions(ollama_version.as_deref(), harness_version.as_deref())?;
 
         Ok(StackSnapshot {
             ollama: ServiceSnapshot {
@@ -129,7 +136,7 @@ impl StackSupervisor {
                     ServiceState::Offline
                 },
                 url: config.ollama.url,
-                version: ollama_version.ok(),
+                version: ollama_version,
                 managed: managed.contains_key(&ServiceKind::Ollama),
                 pid: managed.get(&ServiceKind::Ollama).copied(),
                 message: None,
@@ -142,7 +149,7 @@ impl StackSupervisor {
                     ServiceState::Offline
                 },
                 url: config.harness.url,
-                version: None,
+                version: harness_version,
                 managed: managed.contains_key(&ServiceKind::Harness),
                 pid: managed.get(&ServiceKind::Harness).copied(),
                 message: None,
@@ -150,6 +157,7 @@ impl StackSupervisor {
             installed_models,
             running_models,
             environment,
+            compatibility,
             config_path: self.store.path().display().to_string(),
         })
     }
@@ -642,6 +650,31 @@ fn platform_command(executable: &PathBuf, args: &[String]) -> Command {
     let mut command = Command::new(executable);
     command.args(args);
     command
+}
+
+fn is_harness_command(value: &str) -> bool {
+    Path::new(value)
+        .file_stem()
+        .and_then(|name| name.to_str())
+        .is_some_and(|name| name.eq_ignore_ascii_case("dsh"))
+}
+
+async fn inspect_cli_version(value: &str) -> Option<String> {
+    let executable = PathBuf::from(value);
+    let mut command = platform_command(&executable, &["--version".into()]);
+    command.kill_on_drop(true);
+    let output = timeout(Duration::from_secs(3), command.output())
+        .await
+        .ok()?
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .map(str::trim)
+        .find(|line| !line.is_empty())
+        .map(str::to_owned)
 }
 
 #[cfg(test)]

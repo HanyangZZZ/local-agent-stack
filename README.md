@@ -10,6 +10,7 @@ The initial Windows release manages:
 - DeepSeek Harness health and a dedicated, app-managed launch process.
 - An update-safe Harness profile and optional `/local-stack` companion command.
 - Guided first-run setup, editable runtime configuration, and redacted diagnostics.
+- Version-aware compatibility status for independently updated runtimes.
 - An embedded Harness workspace that remains separate from the control plane.
 
 > [!IMPORTANT]
@@ -103,6 +104,11 @@ The managed Harness workflow is available from the Harness service card:
    GitHub release and validates the composition again.
 3. Start Harness from the control center and use `/local-stack` inside Harness
    to view runtime and GPU-memory status.
+
+The compatibility strip uses [manifests/compatibility.json](manifests/compatibility.json)
+to distinguish tested versions from runtimes that are too old or newer than the
+tested range. This manifest is release-controlled; it never updates or
+downgrades a separately installed runtime without an explicit user action.
 
 ## License
 

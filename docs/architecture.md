@@ -63,3 +63,9 @@ Desktop, runtime adapter and Harness companion versions are independent. A
 signed compatibility manifest will state tested Harness and Ollama ranges. CI
 will test the current release, previous release and upstream development build
 where practical.
+
+The first embedded manifest is checked into `manifests/compatibility.json` and
+ships with the desktop binary. Runtime versions are compared locally using
+semantic-version ranges; an unknown or newer version produces a warning rather
+than an automatic mutation. A future remotely fetched manifest must be signed
+and verified before it can influence installation or upgrade actions.

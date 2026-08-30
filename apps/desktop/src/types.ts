@@ -32,7 +32,25 @@ export interface StackSnapshot {
   installedModels: InstalledModel[];
   runningModels: RunningModel[];
   environment: EnvironmentSnapshot;
+  compatibility: CompatibilityReport;
   configPath: string;
+}
+
+export type CompatibilityState = "compatible" | "outdated" | "untested" | "unknown";
+
+export interface ComponentCompatibility {
+  kind: ServiceKind;
+  displayName: string;
+  detectedVersion?: string;
+  recommendedVersion: string;
+  state: CompatibilityState;
+  message: string;
+  source: string;
+}
+
+export interface CompatibilityReport {
+  manifestUpdatedAt: string;
+  components: ComponentCompatibility[];
 }
 
 export interface EnvironmentSnapshot {

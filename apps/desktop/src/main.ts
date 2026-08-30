@@ -33,6 +33,7 @@ app.innerHTML = `
       </div>
       <div id="notice" class="notice hidden"></div>
       <div class="environment-strip" id="environment-strip"><span>Inspecting local environment…</span></div>
+      <div class="compatibility-strip" id="compatibility-strip"></div>
       <div class="service-grid" id="service-grid"><div class="skeleton"></div><div class="skeleton"></div></div>
       <section class="panel">
         <div class="panel-heading"><div><p class="eyebrow">MODEL LIBRARY</p><h2>Ollama models</h2></div><form id="pull-form"><input id="model-name" placeholder="e.g. qwen3:8b" autocomplete="off"><button class="primary" type="submit">Pull model</button></form></div>
@@ -112,6 +113,11 @@ function render(): void {
     <div><span class="env-label">VRAM</span><strong>${gpu ? `${(gpu.memoryUsedMib / 1024).toFixed(1)} / ${(gpu.memoryTotalMib / 1024).toFixed(1)} GB` : "—"}</strong></div>
     <div><span class="env-label">DRIVER</span><strong>${gpu?.driverVersion ?? "—"}</strong></div>
     <div><span class="env-label">TOOLS</span><strong>${[snapshot.environment.ollamaPath && "Ollama", snapshot.environment.harnessPath && "Harness", snapshot.environment.nodePath && "Node", snapshot.environment.gitPath && "Git"].filter(Boolean).join(" · ") || "None detected"}</strong></div>`;
+  $("#compatibility-strip").innerHTML = snapshot.compatibility.components.map((component) => `
+    <div class="compatibility-item ${component.state}">
+      <span class="compatibility-state">${component.state}</span>
+      <div><strong>${component.displayName} ${component.detectedVersion ?? "version unknown"}</strong><small>${component.message} · Recommended ${component.recommendedVersion}</small></div>
+    </div>`).join("");
 
   const running = new Map(snapshot.runningModels.map((model) => [model.name, model]));
   $("#models").innerHTML = snapshot.installedModels.length
@@ -273,6 +279,7 @@ function updateSetupSummary(): void {
     snapshot.environment.ollamaPath ? "Ollama detected" : "Ollama not detected",
     snapshot.environment.harnessPath ? "Harness detected" : "Harness not detected",
     gpu ? `${gpu.name} · ${(gpu.memoryTotalMib / 1024).toFixed(1)} GB VRAM` : "No NVIDIA GPU detected",
+    snapshot.compatibility.components.some((component) => component.state === "outdated") ? "Upgrade warning" : "Compatibility checked",
   ];
   $("#setup-summary").textContent = detected.join("  •  ");
 }

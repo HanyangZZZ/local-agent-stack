@@ -9,6 +9,7 @@ repository.workspace = true
 directories.workspace = true
 futures-util.workspace = true
 reqwest.workspace = true
+semver.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
