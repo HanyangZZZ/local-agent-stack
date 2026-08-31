@@ -39,7 +39,7 @@ app.innerHTML = `
       <div class="runtime-management" id="runtime-management"></div>
       <div class="service-grid" id="service-grid"><div class="skeleton"></div><div class="skeleton"></div></div>
       <section class="panel">
-        <div class="panel-heading"><div><p class="eyebrow">MODEL LIBRARY</p><h2>Ollama models</h2></div><form id="pull-form"><input id="model-name" placeholder="e.g. qwen3:8b" autocomplete="off"><button class="primary" type="submit">Pull model</button></form></div>
+        <div class="panel-heading"><div><p class="eyebrow">MODEL LIBRARY</p><h2>Ollama models</h2></div><div class="model-controls"><button class="secondary" id="release-all-vram" type="button" disabled>Release all VRAM</button><form id="pull-form"><input id="model-name" placeholder="e.g. qwen3:8b" autocomplete="off"><button class="primary" type="submit">Pull model</button></form></div></div>
         <div id="models" class="models"><p class="muted">Checking Ollama…</p></div>
       </section>
       <footer><span id="config-path"></span><span>Apache-2.0 · <span id="app-version">version…</span></span></footer>
@@ -130,6 +130,12 @@ function render(): void {
     <div class="runtime-item"><div><p class="eyebrow">APP-OWNED HARNESS</p><strong>${managedHarness.installed ? `Harness ${managedHarness.currentVersion}` : "Harness is externally installed"}</strong><span>${managedHarness.installed ? `Versioned release active${managedHarness.previousVersion ? ` · Previous ${managedHarness.previousVersion}` : ""}` : "Import a tested copy without modifying the existing Harness installation."}</span></div><div class="runtime-actions"><button class="secondary" id="install-managed-harness">${managedHarness.installed ? "Re-import tested release" : "Import managed Harness"}</button><button class="secondary" id="rollback-managed-harness" ${managedHarness.canRollback ? "" : "disabled"}>Rollback</button></div></div>`;
 
   const running = new Map(snapshot.runningModels.map((model) => [model.name, model]));
+  const releaseAllButton = $("#release-all-vram") as HTMLButtonElement;
+  const activeVram = snapshot.runningModels.reduce((total, model) => total + model.sizeVram, 0);
+  releaseAllButton.disabled = snapshot.runningModels.length === 0;
+  releaseAllButton.textContent = snapshot.runningModels.length > 0
+    ? `Release ${bytes(activeVram)} VRAM (${snapshot.runningModels.length})`
+    : "Release all VRAM";
   $("#models").innerHTML = snapshot.installedModels.length
     ? snapshot.installedModels.map((model) => {
         const active = running.get(model.name);
@@ -139,6 +145,11 @@ function render(): void {
 
   document.querySelectorAll<HTMLButtonElement>(".service-action").forEach((button) => button.addEventListener("click", () => serviceAction(button)));
   document.querySelectorAll<HTMLButtonElement>(".model-action").forEach((button) => button.addEventListener("click", () => modelAction(button)));
+  releaseAllButton.addEventListener("click", () => {
+    const count = snapshot?.runningModels.length ?? 0;
+    if (count === 0 || !window.confirm(`Release ${bytes(activeVram)} of GPU memory used by all ${count} loaded Ollama model${count === 1 ? "" : "s"}?`)) return;
+    void runAction(() => invoke<ActionResult>("unload_all_models"));
+  });
   document.querySelector<HTMLButtonElement>("#prepare-profile")?.addEventListener("click", () => {
     void runAction(() => invoke<ActionResult>("prepare_harness_profile"));
   });

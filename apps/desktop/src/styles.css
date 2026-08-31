@@ -70,6 +70,7 @@ h2 { font-size: 17px; margin: 0; }
 .panel { margin-top: 18px; overflow: hidden; }
 .panel-heading { padding: 20px 22px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #29313a; }
 .panel-heading form { display: flex; gap: 8px; }
+.model-controls { display: flex; align-items: center; gap: 8px; }
 input { color: #e8edf2; background: #0c1116; border: 1px solid #303944; border-radius: 8px; padding: 9px 11px; outline: none; }
 input:focus { border-color: #64e6b4; box-shadow: 0 0 0 3px rgba(100,230,180,.1); }
 .model-row { display: grid; grid-template-columns: minmax(300px, 1fr) 180px auto; align-items: center; gap: 20px; padding: 15px 22px; border-bottom: 1px solid #222a32; }

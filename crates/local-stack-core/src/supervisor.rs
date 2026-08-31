@@ -303,6 +303,19 @@ impl StackSupervisor {
         )))
     }
 
+    pub async fn unload_all_models(&self) -> Result<ActionResult> {
+        let config = self.config().await;
+        let count = OllamaClient::new(config.ollama.url)?
+            .unload_all_models()
+            .await?;
+        let message = match count {
+            0 => "No Ollama models are currently using GPU memory".into(),
+            1 => "Released GPU memory used by 1 Ollama model".into(),
+            count => format!("Released GPU memory used by {count} Ollama models"),
+        };
+        Ok(ActionResult::success(message))
+    }
+
     pub async fn delete_model(&self, model: &str) -> Result<ActionResult> {
         let config = self.config().await;
         OllamaClient::new(config.ollama.url)?

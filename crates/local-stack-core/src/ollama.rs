@@ -117,6 +117,15 @@ impl OllamaClient {
         Ok(())
     }
 
+    pub async fn unload_all_models(&self) -> Result<usize> {
+        let models = self.running_models().await?;
+        let count = models.len();
+        for model in models {
+            self.unload_model(&model.name).await?;
+        }
+        Ok(count)
+    }
+
     pub async fn delete_model(&self, model: &str) -> Result<()> {
         validate_model_name(model)?;
         let response = self

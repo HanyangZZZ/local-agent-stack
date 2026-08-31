@@ -6,7 +6,7 @@ app-owned runtime releases without forking their upstream projects.
 
 The initial Windows release manages:
 
-- Ollama health, installed models, running models, VRAM use, downloads and unloads.
+- Ollama health, installed models, running models, VRAM use, downloads, per-model unloads, and one-click release of all model VRAM.
 - Verified, versioned Ollama installation with transactional activation and rollback.
 - DeepSeek Harness health and a dedicated, app-managed launch process.
 - An update-safe Harness profile and optional `/local-stack` companion command.

@@ -113,6 +113,15 @@ async fn unload_model(model: &str, state: State<'_, AppState>) -> Result<ActionR
 }
 
 #[tauri::command]
+async fn unload_all_models(state: State<'_, AppState>) -> Result<ActionResult, String> {
+    state
+        .0
+        .unload_all_models()
+        .await
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
 async fn delete_model(model: &str, state: State<'_, AppState>) -> Result<ActionResult, String> {
     state
         .0
@@ -295,6 +304,7 @@ pub fn run() {
             restart_service,
             pull_model,
             unload_model,
+            unload_all_models,
             delete_model,
             prepare_harness_profile,
             install_harness_companion,

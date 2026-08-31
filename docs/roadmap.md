@@ -6,6 +6,7 @@
 - [x] Typed configuration and service snapshots.
 - [x] Ollama version, model and running-model discovery.
 - [x] Ollama pull, delete and immediate unload operations.
+- [x] One-click release of GPU memory used by every loaded Ollama model.
 - [x] Managed Ollama and Harness child-process start/stop/restart.
 - [x] Embedded Harness workspace.
 - [x] Streaming model-pull progress.
