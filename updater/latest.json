@@ -1,0 +1,11 @@
+{
+  "version": "0.1.1-alpha.1",
+  "notes": "Signed Local Agent Stack 0.1.1-alpha.1 desktop update",
+  "pub_date": "2026-08-31T00:15:28Z",
+  "platforms": {
+    "windows-x86_64": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUdzd6eHRzb202K0gyVnlwbVRsTGhTYUFIUW9scVZHWmxzckxhVkRLSTB4bU41S3lSRXNHTUc0M3FGTFhvVDYyQVpSTWxxbFpRZHYwTVJpWmM4Q2VYNGFEaElZbGNRYXdVPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg4MTM1Mjk4CWZpbGU6TG9jYWwgQWdlbnQgU3RhY2tfMC4xLjEtYWxwaGEuMV94NjQtc2V0dXAuZXhlCmFhTjBsSjNzdzdTY1ZpemEySGRHMVhvOERlVDgvWiswTjJCcGJiQWhNMktsdjdnWm5xT3BtWDVBL0VTNFJoOFBOaTRyMTlnSzNJTXI2S0lUR0J4UERBPT0K",
+      "url": "https://github.com/HanyangZZZ/local-agent-stack/releases/download/v0.1.1-alpha.1/Local-Agent-Stack_0.1.1-alpha.1_windows-x86_64-setup.exe"
+    }
+  }
+}
