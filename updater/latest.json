@@ -1,11 +1,11 @@
 {
-  "version": "0.1.1-alpha.1",
-  "notes": "Signed Local Agent Stack 0.1.1-alpha.1 desktop update",
-  "pub_date": "2026-08-31T00:15:28Z",
+  "version": "0.1.1-alpha.2",
+  "notes": "Signed Local Agent Stack 0.1.1-alpha.2 desktop update",
+  "pub_date": "2026-08-31T00:42:10Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUdzd6eHRzb202K0gyVnlwbVRsTGhTYUFIUW9scVZHWmxzckxhVkRLSTB4bU41S3lSRXNHTUc0M3FGTFhvVDYyQVpSTWxxbFpRZHYwTVJpWmM4Q2VYNGFEaElZbGNRYXdVPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg4MTM1Mjk4CWZpbGU6TG9jYWwgQWdlbnQgU3RhY2tfMC4xLjEtYWxwaGEuMV94NjQtc2V0dXAuZXhlCmFhTjBsSjNzdzdTY1ZpemEySGRHMVhvOERlVDgvWiswTjJCcGJiQWhNMktsdjdnWm5xT3BtWDVBL0VTNFJoOFBOaTRyMTlnSzNJTXI2S0lUR0J4UERBPT0K",
-      "url": "https://github.com/HanyangZZZ/local-agent-stack/releases/download/v0.1.1-alpha.1/Local-Agent-Stack_0.1.1-alpha.1_windows-x86_64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUdzd6eHRzb202K09iWVZIc1ZENVk1U1lGZU9oTyt2anM1b2Y5NkZ2dGV4MVlSSWxXMWFKSmJFK1pwTWc0clNaNmpHaEhjY2FzN1k0TkllaDdDYkdHWjBVQVk0eTkxWVFzPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg4MTM2ODk3CWZpbGU6TG9jYWwgQWdlbnQgU3RhY2tfMC4xLjEtYWxwaGEuMl94NjQtc2V0dXAuZXhlCm9lNXJSWGtVZHg1NXdwN2hFajl2a2RDLzJ4bzNaYXBVWURjNUxUcjlGaXMyNjJ0Z2xXaWx3SHZEbkVRdE4vUmhTK2VRanlHY1ZtdzNYNkdFUHRLUkN3PT0K",
+      "url": "https://github.com/HanyangZZZ/local-agent-stack/releases/download/v0.1.1-alpha.2/Local-Agent-Stack_0.1.1-alpha.2_windows-x86_64-setup.exe"
     }
   }
 }
