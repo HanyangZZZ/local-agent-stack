@@ -248,13 +248,104 @@ impl StackSupervisor {
     }
 
     pub async fn stop(&self, kind: ServiceKind) -> Result<ActionResult> {
-        let mut children = self.children.lock().await;
-        let mut child = children
+        let mut child = self
+            .children
+            .lock()
+            .await
             .remove(&kind)
             .ok_or_else(|| StackError::NotManaged(kind.to_string()))?;
-        child.kill().await?;
+        if let Err(error) = child.kill().await {
+            self.children.lock().await.insert(kind, child);
+            return Err(error.into());
+        }
         let _ = child.wait().await;
         Ok(ActionResult::success(format!("{kind} stopped")))
+    }
+
+    pub async fn start_stack(&self) -> Result<ActionResult> {
+        let snapshot = self.snapshot().await?;
+        let ollama_online = snapshot.ollama.state == ServiceState::Online;
+        let harness_online = snapshot.harness.state == ServiceState::Online;
+        let plan = stack_start_plan(ollama_online, harness_online);
+        if plan.is_empty() {
+            return Ok(ActionResult::success(
+                "The local agent stack is already online",
+            ));
+        }
+
+        let mut started = Vec::new();
+        for kind in plan {
+            if let Err(error) = self.start(kind).await {
+                let mut rollback_failures = Vec::new();
+                for rollback_kind in started.iter().rev().copied() {
+                    if let Err(rollback_error) = self.stop(rollback_kind).await {
+                        rollback_failures.push(format!("{rollback_kind}: {rollback_error}"));
+                    }
+                }
+                let rollback = if rollback_failures.is_empty() {
+                    "services started by this action were stopped".to_owned()
+                } else {
+                    format!(
+                        "rollback needs attention ({})",
+                        rollback_failures.join(", ")
+                    )
+                };
+                return Err(StackError::Config(format!(
+                    "could not start {kind}: {error}; {rollback}"
+                )));
+            }
+            started.push(kind);
+        }
+
+        let names = started
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>()
+            .join(" and ");
+        let message = if ollama_online || harness_online {
+            format!("Stack ready · started {names} · kept existing services online")
+        } else {
+            format!("Stack ready · started {names}")
+        };
+        Ok(ActionResult::success(message))
+    }
+
+    pub async fn stop_managed_stack(&self) -> Result<ActionResult> {
+        self.reap_exited().await;
+        let managed = self.managed_processes().await;
+        let plan = stack_stop_plan(
+            managed.contains_key(&ServiceKind::Ollama),
+            managed.contains_key(&ServiceKind::Harness),
+        );
+        if plan.is_empty() {
+            return Ok(ActionResult::success(
+                "No app-managed services are running; external services were left alone",
+            ));
+        }
+
+        let mut stopped = Vec::new();
+        let mut failures = Vec::new();
+        for kind in plan {
+            match self.stop(kind).await {
+                Ok(_) => stopped.push(kind),
+                Err(error) => failures.push(format!("{kind}: {error}")),
+            }
+        }
+        if !failures.is_empty() {
+            return Err(StackError::Config(format!(
+                "some app-managed services could not be stopped: {}",
+                failures.join(", ")
+            )));
+        }
+
+        let names = stopped
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>()
+            .join(" and ");
+        Ok(ActionResult::success(format!(
+            "Stopped app-managed {names} · external services were left alone"
+        )))
     }
 
     pub async fn restart(&self, kind: ServiceKind) -> Result<ActionResult> {
@@ -1085,6 +1176,26 @@ async fn inspect_ollama_executable(executable: &Path) -> Result<String> {
     Ok(detected)
 }
 
+fn stack_start_plan(ollama_online: bool, harness_online: bool) -> Vec<ServiceKind> {
+    [
+        (!ollama_online).then_some(ServiceKind::Ollama),
+        (!harness_online).then_some(ServiceKind::Harness),
+    ]
+    .into_iter()
+    .flatten()
+    .collect()
+}
+
+fn stack_stop_plan(ollama_managed: bool, harness_managed: bool) -> Vec<ServiceKind> {
+    [
+        harness_managed.then_some(ServiceKind::Harness),
+        ollama_managed.then_some(ServiceKind::Ollama),
+    ]
+    .into_iter()
+    .flatten()
+    .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1132,5 +1243,27 @@ mod tests {
         assert_eq!(args.first(), config.managed_harness_entrypoint.as_ref());
         assert_eq!(args[1], "--profile");
         assert_eq!(args[2], "local-agent-stack");
+    }
+
+    #[test]
+    fn plans_stack_start_in_dependency_order_and_skips_online_services() {
+        assert_eq!(
+            stack_start_plan(false, false),
+            [ServiceKind::Ollama, ServiceKind::Harness]
+        );
+        assert_eq!(stack_start_plan(false, true), [ServiceKind::Ollama]);
+        assert_eq!(stack_start_plan(true, false), [ServiceKind::Harness]);
+        assert!(stack_start_plan(true, true).is_empty());
+    }
+
+    #[test]
+    fn plans_stack_stop_in_reverse_order_and_ignores_external_services() {
+        assert_eq!(
+            stack_stop_plan(true, true),
+            [ServiceKind::Harness, ServiceKind::Ollama]
+        );
+        assert_eq!(stack_stop_plan(true, false), [ServiceKind::Ollama]);
+        assert_eq!(stack_stop_plan(false, true), [ServiceKind::Harness]);
+        assert!(stack_stop_plan(false, false).is_empty());
     }
 }

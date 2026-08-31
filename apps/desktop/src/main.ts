@@ -31,7 +31,7 @@ app.innerHTML = `
     <section id="dashboard-view">
       <div class="hero">
         <div><p class="eyebrow">SYSTEM OVERVIEW</p><h1>Your local agent stack,<br><em>under control.</em></h1></div>
-        <div class="hero-actions"><button class="secondary" id="update-button">Check for updates</button><button class="secondary" id="diagnostics-button">Export diagnostics</button><button class="secondary" id="refresh-button">Refresh</button><button class="primary" id="launch-button">Open Harness</button></div>
+        <div class="hero-actions"><button class="primary" id="start-stack">Start stack</button><button class="danger" id="stop-stack">Stop managed stack</button><button class="secondary" id="update-button">Check for updates</button><button class="secondary" id="diagnostics-button">Export diagnostics</button><button class="secondary" id="refresh-button">Refresh</button><button class="secondary" id="launch-button">Open Harness</button></div>
       </div>
       <div id="notice" class="notice hidden"></div>
       <div class="environment-strip" id="environment-strip"><span>Inspecting local environment…</span></div>
@@ -109,6 +109,10 @@ function serviceCard(service: ServiceSnapshot): string {
 
 function render(): void {
   if (!snapshot) return;
+  const stackOnline = snapshot.ollama.state === "online" && snapshot.harness.state === "online";
+  const managedStackRunning = snapshot.ollama.managed || snapshot.harness.managed;
+  ($("#start-stack") as HTMLButtonElement).disabled = stackOnline;
+  ($("#stop-stack") as HTMLButtonElement).disabled = !managedStackRunning;
   $("#service-grid").innerHTML = serviceCard(snapshot.ollama) + serviceCard(snapshot.harness);
   $("#config-path").textContent = `Config: ${snapshot.configPath}`;
   const gpu = snapshot.environment.gpus[0];
@@ -282,6 +286,13 @@ function selectView(name: string): void {
 }
 
 $("#refresh-button").addEventListener("click", refresh);
+$("#start-stack").addEventListener("click", () => {
+  void runAction(() => invoke<ActionResult>("start_stack"));
+});
+$("#stop-stack").addEventListener("click", () => {
+  if (!window.confirm("Stop every service started by Local Agent Stack? External Ollama and Harness processes will remain running.")) return;
+  void runAction(() => invoke<ActionResult>("stop_managed_stack"));
+});
 $("#update-button").addEventListener("click", async () => {
   if (busy) return;
   busy = true;

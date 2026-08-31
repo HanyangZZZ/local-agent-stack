@@ -9,6 +9,7 @@ The initial Windows release manages:
 - Ollama health, installed models, running models, VRAM use, downloads, per-model unloads, and one-click release of all model VRAM.
 - Verified, versioned Ollama installation with transactional activation and rollback.
 - DeepSeek Harness health and a dedicated, app-managed launch process.
+- One-click stack start with rollback on partial failure, plus ownership-safe shutdown that never terminates external services.
 - An update-safe Harness profile and optional `/local-stack` companion command.
 - Guided first-run setup, editable runtime configuration, and redacted diagnostics.
 - Version-aware compatibility status for independently updated runtimes.

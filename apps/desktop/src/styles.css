@@ -19,6 +19,7 @@ main { max-width: 1380px; margin: 0 auto; padding: 42px 34px 24px; }
 .hero h1 em { font-style: normal; color: #64e6b4; }
 .eyebrow { color: #67dbae; letter-spacing: .16em; font-size: 10px; font-weight: 800; margin: 0 0 7px; }
 .hero-actions, .card-actions, .dialog-actions { display: flex; gap: 9px; }
+.hero-actions { max-width: 690px; flex-wrap: wrap; justify-content: flex-end; }
 button.primary, button.secondary, button.danger, button.ghost { border-radius: 9px; padding: 9px 14px; font-weight: 700; font-size: 12px; }
 button.primary { background: #64e6b4; color: #08110e; border: 1px solid #64e6b4; }
 button.secondary { color: #d5dce5; background: #171d24; border: 1px solid #303844; }

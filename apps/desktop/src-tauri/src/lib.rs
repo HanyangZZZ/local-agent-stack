@@ -89,6 +89,24 @@ async fn restart_service(
 }
 
 #[tauri::command]
+async fn start_stack(state: State<'_, AppState>) -> Result<ActionResult, String> {
+    state
+        .0
+        .start_stack()
+        .await
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+async fn stop_managed_stack(state: State<'_, AppState>) -> Result<ActionResult, String> {
+    state
+        .0
+        .stop_managed_stack()
+        .await
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
 async fn pull_model(
     model: &str,
     app: AppHandle,
@@ -302,6 +320,8 @@ pub fn run() {
             start_service,
             stop_service,
             restart_service,
+            start_stack,
+            stop_managed_stack,
             pull_model,
             unload_model,
             unload_all_models,
