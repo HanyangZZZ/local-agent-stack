@@ -26,6 +26,8 @@ use crate::{
 const HARNESS_COMPANION_URL: &str = "https://github.com/HanyangZZZ/local-agent-stack/releases/download/v0.1.0-alpha.2/local-agent-stack-harness-companion-0.1.0-alpha.2.tgz";
 const LOG_TAIL_MAX_BYTES: u64 = 256 * 1024;
 const LOG_TAIL_MAX_LINES: usize = 250;
+#[cfg(windows)]
+const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
 #[derive(Clone)]
 pub struct StackSupervisor {
@@ -234,7 +236,7 @@ impl StackSupervisor {
             .stdout(stdout.into_std().await)
             .stderr(stderr.into_std().await);
         #[cfg(windows)]
-        command.creation_flags(0x0800_0000);
+        command.creation_flags(CREATE_NO_WINDOW);
 
         let child = command.spawn()?;
         let pid = child.id();
@@ -602,7 +604,7 @@ impl StackSupervisor {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
         #[cfg(windows)]
-        command.creation_flags(0x0800_0000);
+        command.creation_flags(CREATE_NO_WINDOW);
 
         let output = timeout(Duration::from_secs(180), command.output())
             .await
@@ -808,7 +810,7 @@ impl StackSupervisor {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
         #[cfg(windows)]
-        command.creation_flags(0x0800_0000);
+        command.creation_flags(CREATE_NO_WINDOW);
 
         let output = timeout(Duration::from_secs(45), command.output())
             .await
@@ -1081,6 +1083,7 @@ fn platform_command(executable: &PathBuf, args: &[String]) -> Command {
                 .arg("/c")
                 .arg(executable)
                 .args(args);
+            command.creation_flags(CREATE_NO_WINDOW);
             return command;
         }
         if extension.eq_ignore_ascii_case("ps1") {
@@ -1089,12 +1092,15 @@ fn platform_command(executable: &PathBuf, args: &[String]) -> Command {
                 .args(["-NoProfile", "-ExecutionPolicy", "Bypass", "-File"])
                 .arg(executable)
                 .args(args);
+            command.creation_flags(CREATE_NO_WINDOW);
             return command;
         }
     }
 
     let mut command = Command::new(executable);
     command.args(args);
+    #[cfg(windows)]
+    command.creation_flags(CREATE_NO_WINDOW);
     command
 }
 
@@ -1135,7 +1141,7 @@ async fn inspect_managed_harness_version(node: &str, entrypoint: &str) -> Result
     let mut command = Command::new(node);
     command.arg(entrypoint).arg("--version").kill_on_drop(true);
     #[cfg(windows)]
-    command.creation_flags(0x0800_0000);
+    command.creation_flags(CREATE_NO_WINDOW);
     let output = timeout(Duration::from_secs(3), command.output())
         .await
         .map_err(|_| StackError::Config("managed Harness version check timed out".into()))??;
@@ -1160,7 +1166,7 @@ async fn inspect_ollama_executable(executable: &Path) -> Result<String> {
     let mut command = Command::new(executable);
     command.arg("--version").kill_on_drop(true);
     #[cfg(windows)]
-    command.creation_flags(0x0800_0000);
+    command.creation_flags(CREATE_NO_WINDOW);
     let output = timeout(Duration::from_secs(10), command.output())
         .await
         .map_err(|_| StackError::Config("Ollama version check timed out".into()))??;

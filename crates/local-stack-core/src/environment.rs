@@ -4,6 +4,9 @@ use tokio::process::Command;
 
 use crate::{EnvironmentSnapshot, GpuSnapshot};
 
+#[cfg(windows)]
+const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+
 pub async fn inspect_environment() -> EnvironmentSnapshot {
     let gpus = match which::which("nvidia-smi") {
         Ok(executable) => inspect_nvidia(executable).await,
@@ -39,13 +42,15 @@ fn default_ollama_path() -> Option<String> {
 }
 
 async fn inspect_nvidia(executable: PathBuf) -> Vec<GpuSnapshot> {
-    let output = Command::new(executable)
-        .args([
-            "--query-gpu=name,driver_version,memory.total,memory.used,memory.free",
-            "--format=csv,noheader,nounits",
-        ])
-        .output()
-        .await;
+    let mut command = Command::new(executable);
+    command.args([
+        "--query-gpu=name,driver_version,memory.total,memory.used,memory.free",
+        "--format=csv,noheader,nounits",
+    ]);
+    #[cfg(windows)]
+    command.creation_flags(CREATE_NO_WINDOW);
+
+    let output = command.output().await;
     match output {
         Ok(output) if output.status.success() => {
             parse_nvidia_csv(&String::from_utf8_lossy(&output.stdout))
