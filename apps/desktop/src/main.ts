@@ -1,7 +1,8 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { getVersion } from "@tauri-apps/api/app";
 import "./styles.css";
-import type { ActionResult, PullProgress, RuntimeInstallProgress, ServiceKind, ServiceSnapshot, StackConfig, StackSnapshot } from "./types";
+import type { ActionResult, AppUpdateMetadata, AppUpdateProgress, PullProgress, RuntimeInstallProgress, ServiceKind, ServiceSnapshot, StackConfig, StackSnapshot } from "./types";
 
 const app = document.querySelector<HTMLDivElement>("#app");
 if (!app) throw new Error("Application root is missing");
@@ -12,6 +13,7 @@ let busy = false;
 let workspaceVisible = false;
 let onboardingShown = false;
 let setupVerified = false;
+let noticeTimer: number | undefined;
 
 app.innerHTML = `
   <header class="topbar">
@@ -29,7 +31,7 @@ app.innerHTML = `
     <section id="dashboard-view">
       <div class="hero">
         <div><p class="eyebrow">SYSTEM OVERVIEW</p><h1>Your local agent stack,<br><em>under control.</em></h1></div>
-        <div class="hero-actions"><button class="secondary" id="diagnostics-button">Export diagnostics</button><button class="secondary" id="refresh-button">Refresh</button><button class="primary" id="launch-button">Open Harness</button></div>
+        <div class="hero-actions"><button class="secondary" id="update-button">Check for updates</button><button class="secondary" id="diagnostics-button">Export diagnostics</button><button class="secondary" id="refresh-button">Refresh</button><button class="primary" id="launch-button">Open Harness</button></div>
       </div>
       <div id="notice" class="notice hidden"></div>
       <div class="environment-strip" id="environment-strip"><span>Inspecting local environment…</span></div>
@@ -40,7 +42,7 @@ app.innerHTML = `
         <div class="panel-heading"><div><p class="eyebrow">MODEL LIBRARY</p><h2>Ollama models</h2></div><form id="pull-form"><input id="model-name" placeholder="e.g. qwen3:8b" autocomplete="off"><button class="primary" type="submit">Pull model</button></form></div>
         <div id="models" class="models"><p class="muted">Checking Ollama…</p></div>
       </section>
-      <footer><span id="config-path"></span><span>Apache-2.0 · v0.1.0</span></footer>
+      <footer><span id="config-path"></span><span>Apache-2.0 · <span id="app-version">version…</span></span></footer>
     </section>
     <section id="workspace-view" class="workspace hidden"><div class="workspace-empty"><h2>Harness is not available</h2><p>Start Harness from the control center, then refresh this workspace.</p></div></section>
   </main>
@@ -210,13 +212,15 @@ async function modelAction(button: HTMLButtonElement): Promise<void> {
 }
 
 function notify(message: string, error = false): void {
+  if (noticeTimer !== undefined) window.clearTimeout(noticeTimer);
   const notice = $("#notice");
   notice.textContent = message;
   notice.className = `notice ${error ? "error" : "success"}`;
-  window.setTimeout(() => notice.classList.add("hidden"), 6000);
+  noticeTimer = window.setTimeout(() => notice.classList.add("hidden"), 6000);
 }
 
 void listen<PullProgress>("ollama-pull-progress", ({ payload }) => {
+  if (noticeTimer !== undefined) window.clearTimeout(noticeTimer);
   const notice = $("#notice");
   const percent = payload.total && payload.completed != null
     ? ` · ${Math.min(100, Math.round(payload.completed / payload.total * 100))}%`
@@ -226,9 +230,20 @@ void listen<PullProgress>("ollama-pull-progress", ({ payload }) => {
 });
 
 void listen<RuntimeInstallProgress>("runtime-install-progress", ({ payload }) => {
+  if (noticeTimer !== undefined) window.clearTimeout(noticeTimer);
   const notice = $("#notice");
   const percent = payload.total
     ? ` · ${Math.min(100, Math.round(payload.completed / payload.total * 100))}%`
+    : "";
+  notice.textContent = `${payload.message}${percent}`;
+  notice.className = "notice progress";
+});
+
+void listen<AppUpdateProgress>("app-update-progress", ({ payload }) => {
+  if (noticeTimer !== undefined) window.clearTimeout(noticeTimer);
+  const notice = $("#notice");
+  const percent = payload.total
+    ? ` · ${Math.min(100, Math.round(payload.downloaded / payload.total * 100))}%`
     : "";
   notice.textContent = `${payload.message}${percent}`;
   notice.className = "notice progress";
@@ -256,6 +271,26 @@ function selectView(name: string): void {
 }
 
 $("#refresh-button").addEventListener("click", refresh);
+$("#update-button").addEventListener("click", async () => {
+  if (busy) return;
+  busy = true;
+  document.body.classList.add("busy");
+  try {
+    notify("Checking the signed release channel…");
+    const update = await invoke<AppUpdateMetadata | null>("check_for_app_update");
+    if (!update) {
+      notify("Local Agent Stack is up to date.");
+      return;
+    }
+    if (!window.confirm(`Install signed update ${update.version}? The app will close during installation.`)) return;
+    await invoke<void>("install_app_update");
+  } catch (error) {
+    notify(String(error), true);
+  } finally {
+    busy = false;
+    document.body.classList.remove("busy");
+  }
+});
 $("#diagnostics-button").addEventListener("click", () => {
   void runAction(() => invoke<ActionResult>("export_diagnostics"));
 });
@@ -392,5 +427,6 @@ $("#setup-finish").addEventListener("click", async () => {
   }
 });
 
+void getVersion().then((version) => { $("#app-version").textContent = `v${version}`; });
 void refresh();
 window.setInterval(() => { if (!busy) void refresh(); }, 10000);

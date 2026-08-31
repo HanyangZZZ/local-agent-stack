@@ -95,6 +95,17 @@ export interface RuntimeInstallProgress {
   message: string;
 }
 
+export interface AppUpdateMetadata {
+  version: string;
+  currentVersion: string;
+}
+
+export interface AppUpdateProgress {
+  downloaded: number;
+  total?: number;
+  message: string;
+}
+
 export interface ServiceConfig {
   url: string;
   command?: string;

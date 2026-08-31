@@ -12,6 +12,7 @@ The initial Windows release manages:
 - An update-safe Harness profile and optional `/local-stack` companion command.
 - Guided first-run setup, editable runtime configuration, and redacted diagnostics.
 - Version-aware compatibility status for independently updated runtimes.
+- Signature-enforced in-app desktop updates with release-pipeline key isolation.
 - An embedded Harness workspace that remains separate from the control plane.
 
 > [!IMPORTANT]
@@ -148,6 +149,22 @@ The compatibility strip uses [manifests/compatibility.json](manifests/compatibil
 to distinguish tested versions from runtimes that are too old or newer than the
 tested range. This manifest is release-controlled; it never updates or
 downgrades a separately installed runtime without an explicit user action.
+
+## Desktop updates
+
+The desktop updater accepts only artifacts signed by the project updater key.
+The public key is embedded in the binary; its private counterpart is stored
+outside the repository and in GitHub Actions' encrypted secret store. Release
+tags must exactly match the version in `tauri.conf.json`. The release workflow
+builds and signs the NSIS artifact, publishes its `.sig`, then advances the
+static manifest under `updater/latest.json`.
+
+On Windows, installing an update closes the application. The control center
+refuses to begin an update while a service it launched is still running, which
+prevents an owned Ollama or Harness child process from being orphaned. Updater
+signatures authenticate update content; a separately purchased or identity-
+validated Windows code-signing certificate is still needed to establish a
+SmartScreen publisher identity.
 
 ## License
 

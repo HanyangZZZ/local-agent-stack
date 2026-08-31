@@ -32,9 +32,11 @@
 
 ## 0.4 — Trusted distribution
 
-- Signed compatibility/artifact manifests with key rotation.
+- [x] Signature-enforced desktop updater with an isolated release key.
+- [x] Signed updater artifacts and automated release manifest publication.
+- Signed compatibility/runtime-artifact manifests with key rotation.
 - Signed Windows installers and binaries.
-- In-app self-update with signature verification and release notes.
+- In-app update channels and richer release notes.
 - Download cancellation and resumable large runtime payloads.
 
 ## Later

@@ -15,6 +15,9 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 local-stack-core = { path = "../../../crates/local-stack-core" }
 serde.workspace = true
+serde_json.workspace = true
 tauri = { version = "2", features = [] }
 tokio.workspace = true
 
+[target.'cfg(any(target_os = "macos", windows, target_os = "linux"))'.dependencies]
+tauri-plugin-updater = "2.10.1"

@@ -1,9 +1,32 @@
+use std::sync::{
+    Arc, Mutex,
+    atomic::{AtomicU64, Ordering},
+};
+
 use local_stack_core::{
     ActionResult, RuntimeInstallProgress, ServiceKind, StackConfig, StackSnapshot, StackSupervisor,
 };
+use serde::Serialize;
 use tauri::{AppHandle, Emitter, State};
+use tauri_plugin_updater::{Update, UpdaterExt};
 
 struct AppState(StackSupervisor);
+struct PendingUpdate(Mutex<Option<Update>>);
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct AppUpdateMetadata {
+    version: String,
+    current_version: String,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct AppUpdateProgress {
+    downloaded: u64,
+    total: Option<u64>,
+    message: String,
+}
 
 fn parse_service(service: &str) -> Result<ServiceKind, String> {
     match service {
@@ -175,12 +198,94 @@ async fn export_diagnostics(state: State<'_, AppState>) -> Result<ActionResult, 
         .map_err(|error| error.to_string())
 }
 
+#[tauri::command]
+async fn check_for_app_update(
+    app: AppHandle,
+    pending: State<'_, PendingUpdate>,
+) -> Result<Option<AppUpdateMetadata>, String> {
+    let update = app
+        .updater()
+        .map_err(|error| error.to_string())?
+        .check()
+        .await
+        .map_err(|error| error.to_string())?;
+    let metadata = update.as_ref().map(|update| AppUpdateMetadata {
+        version: update.version.clone(),
+        current_version: update.current_version.clone(),
+    });
+    *pending
+        .0
+        .lock()
+        .map_err(|_| "the pending update lock is unavailable".to_string())? = update;
+    Ok(metadata)
+}
+
+#[tauri::command]
+async fn install_app_update(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    pending: State<'_, PendingUpdate>,
+) -> Result<(), String> {
+    let snapshot = state
+        .0
+        .snapshot()
+        .await
+        .map_err(|error| error.to_string())?;
+    if snapshot.ollama.managed || snapshot.harness.managed {
+        return Err(
+            "Stop services started by Local Agent Stack before installing an app update".into(),
+        );
+    }
+    let update = pending
+        .0
+        .lock()
+        .map_err(|_| "the pending update lock is unavailable".to_string())?
+        .take()
+        .ok_or_else(|| "Check for an update before installing it".to_string())?;
+    let progress_app = app.clone();
+    let finished_app = app.clone();
+    let downloaded = Arc::new(AtomicU64::new(0));
+    let progress_downloaded = downloaded.clone();
+    update
+        .download_and_install(
+            move |chunk_length, content_length| {
+                let completed = progress_downloaded
+                    .fetch_add(chunk_length as u64, Ordering::Relaxed)
+                    .saturating_add(chunk_length as u64);
+                let _ = progress_app.emit(
+                    "app-update-progress",
+                    AppUpdateProgress {
+                        downloaded: completed,
+                        total: content_length,
+                        message: "Downloading and verifying the signed update".into(),
+                    },
+                );
+            },
+            move || {
+                let completed = downloaded.load(Ordering::Relaxed);
+                let _ = finished_app.emit(
+                    "app-update-progress",
+                    AppUpdateProgress {
+                        downloaded: completed,
+                        total: Some(completed),
+                        message: "Signature verified; installing the update".into(),
+                    },
+                );
+            },
+        )
+        .await
+        .map_err(|error| error.to_string())?;
+    app.restart()
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let supervisor = tauri::async_runtime::block_on(StackSupervisor::discover())
         .expect("failed to initialize the Local Agent Stack supervisor");
     tauri::Builder::default()
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(AppState(supervisor))
+        .manage(PendingUpdate(Mutex::new(None)))
         .invoke_handler(tauri::generate_handler![
             get_snapshot,
             get_config,
@@ -199,6 +304,8 @@ pub fn run() {
             rollback_managed_harness,
             complete_setup,
             export_diagnostics,
+            check_for_app_update,
+            install_app_update,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Local Agent Stack");
