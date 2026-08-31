@@ -8,6 +8,7 @@
 - [x] Ollama pull, delete and immediate unload operations.
 - [x] One-click release of GPU memory used by every loaded Ollama model.
 - [x] Transactional stack start and ownership-safe managed stack shutdown.
+- [x] Bounded, local-only service log viewer with missing-log and truncation handling.
 - [x] Managed Ollama and Harness child-process start/stop/restart.
 - [x] Embedded Harness workspace.
 - [x] Streaming model-pull progress.

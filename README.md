@@ -10,6 +10,7 @@ The initial Windows release manages:
 - Verified, versioned Ollama installation with transactional activation and rollback.
 - DeepSeek Harness health and a dedicated, app-managed launch process.
 - One-click stack start with rollback on partial failure, plus ownership-safe shutdown that never terminates external services.
+- In-app bounded Ollama and Harness log tails for local troubleshooting; logs remain local and are excluded from diagnostic exports.
 - An update-safe Harness profile and optional `/local-stack` companion command.
 - Guided first-run setup, editable runtime configuration, and redacted diagnostics.
 - Version-aware compatibility status for independently updated runtimes.

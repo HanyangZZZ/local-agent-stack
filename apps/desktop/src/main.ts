@@ -2,7 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getVersion } from "@tauri-apps/api/app";
 import "./styles.css";
-import type { ActionResult, AppUpdateMetadata, AppUpdateProgress, PullProgress, RuntimeInstallProgress, ServiceKind, ServiceSnapshot, StackConfig, StackSnapshot } from "./types";
+import type { ActionResult, AppUpdateMetadata, AppUpdateProgress, PullProgress, RuntimeInstallProgress, ServiceKind, ServiceLogTail, ServiceSnapshot, StackConfig, StackSnapshot } from "./types";
 
 const app = document.querySelector<HTMLDivElement>("#app");
 if (!app) throw new Error("Application root is missing");
@@ -14,6 +14,7 @@ let workspaceVisible = false;
 let onboardingShown = false;
 let setupVerified = false;
 let noticeTimer: number | undefined;
+let activeLogService: ServiceKind = "ollama";
 
 app.innerHTML = `
   <header class="topbar">
@@ -60,6 +61,15 @@ app.innerHTML = `
       <div class="dialog-actions"><button value="cancel" class="secondary">Cancel</button><button value="default" class="primary" id="save-settings">Save settings</button></div>
     </form>
   </dialog>
+  <dialog id="logs-dialog" class="logs-dialog">
+    <div class="logs-content">
+      <div class="dialog-heading"><div><p class="eyebrow">APP-MANAGED OUTPUT</p><h2 id="logs-title">Service log</h2></div><button class="icon-button" id="logs-close" type="button">×</button></div>
+      <p class="logs-meta" id="logs-meta">Loading bounded log tail…</p>
+      <pre id="logs-body">Loading…</pre>
+      <p class="hint">Only output captured from processes started by Local Agent Stack appears here. External services keep their own logs. Diagnostic exports do not include this content.</p>
+      <div class="dialog-actions"><button class="secondary" id="logs-refresh" type="button">Refresh log</button><button class="primary" id="logs-done" type="button">Done</button></div>
+    </div>
+  </dialog>
   <dialog id="setup-dialog" class="setup-dialog">
     <div class="setup-content">
       <div class="setup-heading"><div class="mark">LS</div><div><p class="eyebrow">FIRST-RUN SETUP</p><h2>Connect your local agent stack</h2></div></div>
@@ -101,6 +111,7 @@ function serviceCard(service: ServiceSnapshot): string {
       <button class="primary service-action" data-action="start" data-service="${service.kind}" ${online ? "disabled" : ""}>Start</button>
       <button class="secondary service-action" data-action="restart" data-service="${service.kind}" ${!canStop ? "disabled" : ""}>Restart</button>
       <button class="danger service-action" data-action="stop" data-service="${service.kind}" ${!canStop ? "disabled" : ""}>Stop</button>
+      <button class="secondary service-log" id="view-log-${service.kind}" data-service="${service.kind}">View log</button>
       ${service.kind === "harness" ? '<button class="secondary" id="prepare-profile">Prepare profile</button>' : ""}
       ${service.kind === "harness" ? '<button class="secondary" id="install-companion">Install companion</button>' : ""}
     </div>
@@ -148,6 +159,9 @@ function render(): void {
     : `<div class="empty"><strong>${snapshot.ollama.state === "online" ? "No models installed" : "Ollama is offline"}</strong><span>${snapshot.ollama.state === "online" ? "Pull a model above to get started." : "Start Ollama to view and manage models."}</span></div>`;
 
   document.querySelectorAll<HTMLButtonElement>(".service-action").forEach((button) => button.addEventListener("click", () => serviceAction(button)));
+  document.querySelectorAll<HTMLButtonElement>(".service-log").forEach((button) => button.addEventListener("click", () => {
+    void openServiceLog(button.dataset.service as ServiceKind);
+  }));
   document.querySelectorAll<HTMLButtonElement>(".model-action").forEach((button) => button.addEventListener("click", () => modelAction(button)));
   releaseAllButton.addEventListener("click", () => {
     const count = snapshot?.runningModels.length ?? 0;
@@ -224,6 +238,27 @@ async function modelAction(button: HTMLButtonElement): Promise<void> {
   if (button.dataset.action === "delete" && !window.confirm(`Delete ${model} from Ollama?`)) return;
   const command = button.dataset.action === "unload" ? "unload_model" : "delete_model";
   await runAction(() => invoke<ActionResult>(command, { model }));
+}
+
+async function openServiceLog(service: ServiceKind): Promise<void> {
+  activeLogService = service;
+  const logsDialog = $("#logs-dialog") as HTMLDialogElement;
+  $("#logs-title").textContent = `${service === "ollama" ? "Ollama" : "Harness"} log`;
+  $("#logs-meta").textContent = "Loading bounded log tail…";
+  $("#logs-body").textContent = "Loading…";
+  if (!logsDialog.open) logsDialog.showModal();
+  try {
+    const log = await invoke<ServiceLogTail>("get_service_log", { service });
+    $("#logs-meta").textContent = log.exists
+      ? `${log.lineCount.toLocaleString()} lines · ${bytes(log.sourceBytes)} source${log.truncated ? " · tail truncated" : ""}`
+      : "No app-managed log exists yet";
+    $("#logs-body").textContent = log.exists && log.content
+      ? log.content
+      : "Start this service from Local Agent Stack to capture its output here.";
+  } catch (error) {
+    $("#logs-meta").textContent = "Could not read the local service log";
+    $("#logs-body").textContent = String(error);
+  }
 }
 
 function notify(message: string, error = false): void {
@@ -330,6 +365,11 @@ $("#pull-form").addEventListener("submit", async (event) => {
 
 const dialog = $("#settings-dialog") as HTMLDialogElement;
 const setupDialog = $("#setup-dialog") as HTMLDialogElement;
+const logsDialog = $("#logs-dialog") as HTMLDialogElement;
+
+$("#logs-close").addEventListener("click", () => logsDialog.close());
+$("#logs-done").addEventListener("click", () => logsDialog.close());
+$("#logs-refresh").addEventListener("click", () => { void openServiceLog(activeLogService); });
 
 async function openSettings(): Promise<void> {
   config = await invoke<StackConfig>("get_config");

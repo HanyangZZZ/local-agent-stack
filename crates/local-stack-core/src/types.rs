@@ -39,6 +39,17 @@ pub struct ServiceSnapshot {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct ServiceLogTail {
+    pub kind: ServiceKind,
+    pub content: String,
+    pub source_bytes: u64,
+    pub line_count: usize,
+    pub truncated: bool,
+    pub exists: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct InstalledModel {
     pub name: String,
     pub size: u64,

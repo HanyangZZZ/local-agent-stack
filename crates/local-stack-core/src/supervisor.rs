@@ -1,5 +1,6 @@
 use std::{
     collections::{HashMap, VecDeque},
+    io::SeekFrom,
     path::{Path, PathBuf},
     process::Stdio,
     sync::Arc,
@@ -9,6 +10,7 @@ use std::{
 use directories::BaseDirs;
 use tokio::{
     fs::{self, OpenOptions},
+    io::{AsyncReadExt, AsyncSeekExt},
     process::{Child, Command},
     sync::{Mutex, RwLock},
     time::{sleep, timeout},
@@ -16,12 +18,14 @@ use tokio::{
 
 use crate::{
     ActionResult, ConfigStore, ManagedRuntimeStore, OllamaClient, PullProgress, Result,
-    RuntimeInstallProgress, ServiceKind, ServiceSnapshot, ServiceState, StackConfig, StackError,
-    StackSnapshot, assess_versions, download_and_extract_verified, embedded_artifact,
-    embedded_manifest, export_diagnostics, inspect_environment,
+    RuntimeInstallProgress, ServiceKind, ServiceLogTail, ServiceSnapshot, ServiceState,
+    StackConfig, StackError, StackSnapshot, assess_versions, download_and_extract_verified,
+    embedded_artifact, embedded_manifest, export_diagnostics, inspect_environment,
 };
 
 const HARNESS_COMPANION_URL: &str = "https://github.com/HanyangZZZ/local-agent-stack/releases/download/v0.1.0-alpha.2/local-agent-stack-harness-companion-0.1.0-alpha.2.tgz";
+const LOG_TAIL_MAX_BYTES: u64 = 256 * 1024;
+const LOG_TAIL_MAX_LINES: usize = 250;
 
 #[derive(Clone)]
 pub struct StackSupervisor {
@@ -92,6 +96,10 @@ impl StackSupervisor {
             "Diagnostics exported to {}",
             path.display()
         )))
+    }
+
+    pub async fn service_log_tail(&self, kind: ServiceKind) -> Result<ServiceLogTail> {
+        read_service_log_tail(&self.log_path(kind).await?, kind).await
     }
 
     pub async fn snapshot(&self) -> Result<StackSnapshot> {
@@ -1196,6 +1204,55 @@ fn stack_stop_plan(ollama_managed: bool, harness_managed: bool) -> Vec<ServiceKi
     .collect()
 }
 
+async fn read_service_log_tail(path: &Path, kind: ServiceKind) -> Result<ServiceLogTail> {
+    let metadata = match fs::metadata(path).await {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            return Ok(ServiceLogTail {
+                kind,
+                content: String::new(),
+                source_bytes: 0,
+                line_count: 0,
+                truncated: false,
+                exists: false,
+            });
+        }
+        Err(error) => return Err(error.into()),
+    };
+    let source_bytes = metadata.len();
+    let start = source_bytes.saturating_sub(LOG_TAIL_MAX_BYTES);
+    let mut file = fs::File::open(path).await?;
+    file.seek(SeekFrom::Start(start)).await?;
+    let mut bytes = Vec::with_capacity((source_bytes - start).min(LOG_TAIL_MAX_BYTES) as usize);
+    file.take(LOG_TAIL_MAX_BYTES)
+        .read_to_end(&mut bytes)
+        .await?;
+
+    let mut truncated = start > 0;
+    if start > 0
+        && let Some(first_newline) = bytes.iter().position(|byte| *byte == b'\n')
+    {
+        bytes.drain(..=first_newline);
+    }
+    let text = String::from_utf8_lossy(&bytes);
+    let mut lines = text.lines().collect::<Vec<_>>();
+    if lines.len() > LOG_TAIL_MAX_LINES {
+        let remove = lines.len() - LOG_TAIL_MAX_LINES;
+        lines.drain(..remove);
+        truncated = true;
+    }
+    let line_count = lines.len();
+
+    Ok(ServiceLogTail {
+        kind,
+        content: lines.join("\n"),
+        source_bytes,
+        line_count,
+        truncated,
+        exists: true,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1265,5 +1322,39 @@ mod tests {
         assert_eq!(stack_stop_plan(true, false), [ServiceKind::Ollama]);
         assert_eq!(stack_stop_plan(false, true), [ServiceKind::Harness]);
         assert!(stack_stop_plan(false, false).is_empty());
+    }
+
+    #[tokio::test]
+    async fn reads_only_the_bounded_tail_of_service_logs() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("ollama.log");
+        let content = (0..300)
+            .map(|index| format!("line-{index:03}"))
+            .collect::<Vec<_>>()
+            .join("\n");
+        fs::write(&path, &content).await.unwrap();
+
+        let tail = read_service_log_tail(&path, ServiceKind::Ollama)
+            .await
+            .unwrap();
+        assert!(tail.exists);
+        assert!(tail.truncated);
+        assert_eq!(tail.line_count, LOG_TAIL_MAX_LINES);
+        assert!(tail.content.starts_with("line-050"));
+        assert!(tail.content.ends_with("line-299"));
+        assert!(!tail.content.contains("line-049"));
+    }
+
+    #[tokio::test]
+    async fn reports_missing_service_logs_without_creating_content() {
+        let directory = tempfile::tempdir().unwrap();
+        let tail =
+            read_service_log_tail(&directory.path().join("harness.log"), ServiceKind::Harness)
+                .await
+                .unwrap();
+        assert!(!tail.exists);
+        assert!(!tail.truncated);
+        assert_eq!(tail.line_count, 0);
+        assert!(tail.content.is_empty());
     }
 }

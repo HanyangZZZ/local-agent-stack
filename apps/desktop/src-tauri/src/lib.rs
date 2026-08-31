@@ -4,7 +4,8 @@ use std::sync::{
 };
 
 use local_stack_core::{
-    ActionResult, RuntimeInstallProgress, ServiceKind, StackConfig, StackSnapshot, StackSupervisor,
+    ActionResult, RuntimeInstallProgress, ServiceKind, ServiceLogTail, StackConfig, StackSnapshot,
+    StackSupervisor,
 };
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, State};
@@ -44,6 +45,18 @@ async fn get_snapshot(state: State<'_, AppState>) -> Result<StackSnapshot, Strin
 #[tauri::command]
 async fn get_config(state: State<'_, AppState>) -> Result<StackConfig, String> {
     Ok(state.0.config().await)
+}
+
+#[tauri::command]
+async fn get_service_log(
+    service: &str,
+    state: State<'_, AppState>,
+) -> Result<ServiceLogTail, String> {
+    state
+        .0
+        .service_log_tail(parse_service(service)?)
+        .await
+        .map_err(|error| error.to_string())
 }
 
 #[tauri::command]
@@ -316,6 +329,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             get_snapshot,
             get_config,
+            get_service_log,
             save_config,
             start_service,
             stop_service,

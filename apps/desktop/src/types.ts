@@ -11,6 +11,15 @@ export interface ServiceSnapshot {
   message?: string;
 }
 
+export interface ServiceLogTail {
+  kind: ServiceKind;
+  content: string;
+  sourceBytes: number;
+  lineCount: number;
+  truncated: boolean;
+  exists: boolean;
+}
+
 export interface InstalledModel {
   name: string;
   size: number;

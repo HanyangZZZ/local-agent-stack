@@ -25,5 +25,5 @@ pub use ollama::OllamaClient;
 pub use supervisor::StackSupervisor;
 pub use types::{
     ActionResult, EnvironmentSnapshot, GpuSnapshot, InstalledModel, PullProgress, RunningModel,
-    ServiceKind, ServiceSnapshot, ServiceState, StackSnapshot,
+    ServiceKind, ServiceLogTail, ServiceSnapshot, ServiceState, StackSnapshot,
 };
