@@ -136,3 +136,9 @@ export interface ActionResult {
   ok: boolean;
   message: string;
 }
+
+export type TrayAction = "show" | "startStack" | "stopManagedStack" | "releaseVram" | "quit";
+
+export interface TrayActionFeedback extends ActionResult {
+  action: TrayAction;
+}

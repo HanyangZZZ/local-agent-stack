@@ -10,6 +10,7 @@ The initial Windows release manages:
 - Verified, versioned Ollama installation with transactional activation and rollback.
 - DeepSeek Harness health and a dedicated, app-managed launch process.
 - One-click stack start with rollback on partial failure, plus ownership-safe shutdown that never terminates external services.
+- A single-instance system-tray supervisor with stack start/stop, one-click VRAM release, and ownership-safe quit controls.
 - In-app bounded Ollama and Harness log tails for local troubleshooting; logs remain local and are excluded from diagnostic exports.
 - An update-safe Harness profile and optional `/local-stack` companion command.
 - Guided first-run setup, editable runtime configuration, and redacted diagnostics.
@@ -146,6 +147,16 @@ previous releases remain side by side, and **Rollback** atomically switches the
 active pointer after confirming the previous executable still exists. Runtime
 state is stored under the operating system's local application-data directory;
 full paths are excluded from diagnostic exports.
+
+## System tray
+
+Closing the dashboard hides it to the system tray instead of terminating the
+supervisor. A left click restores the dashboard; the tray menu can start the
+stack, stop only app-managed services, release all Ollama model VRAM, or quit.
+The quit action first stops app-managed child processes and never terminates an
+external Ollama or Harness process. Opening the desktop shortcut while the app
+is hidden restores the existing instance instead of starting a second control
+plane.
 
 The compatibility strip uses [manifests/compatibility.json](manifests/compatibility.json)
 to distinguish tested versions from runtimes that are too old or newer than the

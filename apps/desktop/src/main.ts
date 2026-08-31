@@ -2,7 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getVersion } from "@tauri-apps/api/app";
 import "./styles.css";
-import type { ActionResult, AppUpdateMetadata, AppUpdateProgress, PullProgress, RuntimeInstallProgress, ServiceKind, ServiceLogTail, ServiceSnapshot, StackConfig, StackSnapshot } from "./types";
+import type { ActionResult, AppUpdateMetadata, AppUpdateProgress, PullProgress, RuntimeInstallProgress, ServiceKind, ServiceLogTail, ServiceSnapshot, StackConfig, StackSnapshot, TrayActionFeedback } from "./types";
 
 const app = document.querySelector<HTMLDivElement>("#app");
 if (!app) throw new Error("Application root is missing");
@@ -17,36 +17,63 @@ let noticeTimer: number | undefined;
 let activeLogService: ServiceKind = "ollama";
 
 app.innerHTML = `
-  <header class="topbar">
-    <div class="brand">
-      <div class="mark">LS</div>
-      <div><strong>Local Agent Stack</strong><span>Local AI control plane</span></div>
-    </div>
-    <nav>
-      <button class="nav active" data-view="dashboard">Control center</button>
-      <button class="nav" data-view="workspace">Harness workspace</button>
-    </nav>
-    <button class="icon-button" id="settings-button" title="Settings">⚙</button>
-  </header>
-  <main>
-    <section id="dashboard-view">
-      <div class="hero">
-        <div><p class="eyebrow">SYSTEM OVERVIEW</p><h1>Your local agent stack,<br><em>under control.</em></h1></div>
-        <div class="hero-actions"><button class="primary" id="start-stack">Start stack</button><button class="danger" id="stop-stack">Stop managed stack</button><button class="secondary" id="update-button">Check for updates</button><button class="secondary" id="diagnostics-button">Export diagnostics</button><button class="secondary" id="refresh-button">Refresh</button><button class="secondary" id="launch-button">Open Harness</button></div>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="mark">LS</div>
+        <div><strong>Local Agent Stack</strong><span>for Harness</span></div>
       </div>
-      <div id="notice" class="notice hidden"></div>
-      <div class="environment-strip" id="environment-strip"><span>Inspecting local environment…</span></div>
-      <div class="compatibility-strip" id="compatibility-strip"></div>
-      <div class="runtime-management" id="runtime-management"></div>
-      <div class="service-grid" id="service-grid"><div class="skeleton"></div><div class="skeleton"></div></div>
-      <section class="panel">
-        <div class="panel-heading"><div><p class="eyebrow">MODEL LIBRARY</p><h2>Ollama models</h2></div><div class="model-controls"><button class="secondary" id="release-all-vram" type="button" disabled>Release all VRAM</button><form id="pull-form"><input id="model-name" placeholder="e.g. qwen3:8b" autocomplete="off"><button class="primary" type="submit">Pull model</button></form></div></div>
-        <div id="models" class="models"><p class="muted">Checking Ollama…</p></div>
-      </section>
-      <footer><span id="config-path"></span><span>Apache-2.0 · <span id="app-version">version…</span></span></footer>
-    </section>
-    <section id="workspace-view" class="workspace hidden"><div class="workspace-empty"><h2>Harness is not available</h2><p>Start Harness from the control center, then refresh this workspace.</p></div></section>
-  </main>
+      <button class="new-session nav" data-view="workspace"><span>＋</span> Open Harness</button>
+      <div class="sidebar-group">
+        <p class="sidebar-label">Workspace</p>
+        <nav aria-label="Application views">
+          <button class="nav active" data-view="dashboard"><span class="nav-icon">⌂</span><span>Control center</span></button>
+          <button class="nav" data-view="workspace"><span class="nav-icon">⌘</span><span>Harness workspace</span></button>
+        </nav>
+      </div>
+      <div class="sidebar-spacer"></div>
+      <div class="sidebar-state">
+        <span class="sidebar-state-dot" id="stack-status-dot"></span>
+        <div><strong id="stack-status-text">Inspecting stack</strong><span>Local services only</span></div>
+      </div>
+      <button class="settings-button" id="settings-button" title="Runtime settings"><span>⚙</span><span>Settings</span></button>
+      <div class="sidebar-version"><span>Alpha</span><span id="app-version">version…</span></div>
+    </aside>
+    <div class="app-content">
+      <header class="topbar">
+        <div class="breadcrumbs"><span>Local Agent Stack</span><i>/</i><strong id="view-title">Control center</strong></div>
+        <div class="topbar-actions"><button class="tertiary" id="diagnostics-button">Export diagnostics</button><button class="tertiary" id="update-button">Check for updates</button><button class="icon-button" id="refresh-button" title="Refresh" aria-label="Refresh">↻</button></div>
+      </header>
+      <main>
+        <section id="dashboard-view">
+          <div class="page-heading">
+            <div><h1>Control center</h1><p>Run Ollama and Harness locally, inspect compatibility, and release GPU memory.</p></div>
+            <div class="hero-actions"><button class="secondary" id="launch-button">Open Harness</button><button class="danger" id="stop-stack">Stop managed</button><button class="primary" id="start-stack">Start stack</button></div>
+          </div>
+          <div id="notice" class="notice hidden"></div>
+          <section class="section-block">
+            <div class="section-heading"><div><h2>Environment</h2><p>Detected hardware and local toolchain</p></div></div>
+            <div class="environment-strip" id="environment-strip"><span>Inspecting local environment…</span></div>
+            <div class="compatibility-strip" id="compatibility-strip"></div>
+          </section>
+          <section class="section-block">
+            <div class="section-heading"><div><h2>Services</h2><p>Only processes started here can be stopped here</p></div></div>
+            <div class="service-grid" id="service-grid"><div class="skeleton"></div><div class="skeleton"></div></div>
+          </section>
+          <section class="section-block">
+            <div class="section-heading"><div><h2>Managed runtimes</h2><p>Verified, app-owned versions with safe rollback</p></div></div>
+            <div class="runtime-management" id="runtime-management"></div>
+          </section>
+          <section class="panel section-block">
+            <div class="panel-heading"><div><h2>Ollama models</h2><p>Installed models and active GPU memory</p></div><div class="model-controls"><button class="secondary" id="release-all-vram" type="button" disabled>Release all VRAM</button><form id="pull-form"><input id="model-name" placeholder="Model name, e.g. qwen3:8b" aria-label="Ollama model name" autocomplete="off"><button class="primary" type="submit">Pull model</button></form></div></div>
+            <div id="models" class="models"><p class="muted">Checking Ollama…</p></div>
+          </section>
+          <footer><span id="config-path"></span><span>Close hides to tray · Apache-2.0</span></footer>
+        </section>
+        <section id="workspace-view" class="workspace hidden"><div class="workspace-empty"><h2>Harness is not available</h2><p>Start Harness from the control center, then refresh this workspace.</p></div></section>
+      </main>
+    </div>
+  </div>
   <dialog id="settings-dialog">
     <form method="dialog" id="settings-form">
       <div class="dialog-heading"><div><p class="eyebrow">LOCAL CONFIGURATION</p><h2>Runtime settings</h2></div><button class="icon-button" value="cancel">×</button></div>
@@ -122,6 +149,9 @@ function render(): void {
   if (!snapshot) return;
   const stackOnline = snapshot.ollama.state === "online" && snapshot.harness.state === "online";
   const managedStackRunning = snapshot.ollama.managed || snapshot.harness.managed;
+  const onlineCount = [snapshot.ollama, snapshot.harness].filter((service) => service.state === "online").length;
+  $("#stack-status-dot").classList.toggle("online", onlineCount > 0);
+  $("#stack-status-text").textContent = onlineCount === 2 ? "Stack online" : onlineCount === 1 ? "Partially online" : "Stack offline";
   ($("#start-stack") as HTMLButtonElement).disabled = stackOnline;
   ($("#stop-stack") as HTMLButtonElement).disabled = !managedStackRunning;
   $("#service-grid").innerHTML = serviceCard(snapshot.ollama) + serviceCard(snapshot.harness);
@@ -299,6 +329,11 @@ void listen<AppUpdateProgress>("app-update-progress", ({ payload }) => {
   notice.className = "notice progress";
 });
 
+void listen<TrayActionFeedback>("tray-action-result", ({ payload }) => {
+  notify(payload.message, !payload.ok);
+  void refresh();
+});
+
 function updateWorkspace(): void {
   if (!snapshot || !workspaceVisible) return;
   const view = $("#workspace-view");
@@ -317,6 +352,7 @@ function selectView(name: string): void {
   $("#dashboard-view").classList.toggle("hidden", workspaceVisible);
   $("#workspace-view").classList.toggle("hidden", !workspaceVisible);
   document.querySelectorAll(".nav").forEach((item) => item.classList.toggle("active", (item as HTMLElement).dataset.view === name));
+  $("#view-title").textContent = workspaceVisible ? "Harness workspace" : "Control center";
   updateWorkspace();
 }
 

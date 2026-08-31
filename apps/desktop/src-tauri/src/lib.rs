@@ -1,3 +1,5 @@
+mod tray;
+
 use std::sync::{
     Arc, Mutex,
     atomic::{AtomicU64, Ordering},
@@ -8,11 +10,16 @@ use local_stack_core::{
     StackSupervisor,
 };
 use serde::Serialize;
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, Emitter, State, WindowEvent};
 use tauri_plugin_updater::{Update, UpdaterExt};
+
+use crate::tray::TrayControlState;
 
 struct AppState(StackSupervisor);
 struct PendingUpdate(Mutex<Option<Update>>);
+
+#[derive(Default)]
+pub(crate) struct ControlGate(tokio::sync::Mutex<()>);
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -63,7 +70,9 @@ async fn get_service_log(
 async fn save_config(
     config: StackConfig,
     state: State<'_, AppState>,
+    gate: State<'_, ControlGate>,
 ) -> Result<ActionResult, String> {
+    let _guard = gate.0.lock().await;
     state
         .0
         .save_config(config)
@@ -72,7 +81,12 @@ async fn save_config(
 }
 
 #[tauri::command]
-async fn start_service(service: &str, state: State<'_, AppState>) -> Result<ActionResult, String> {
+async fn start_service(
+    service: &str,
+    state: State<'_, AppState>,
+    gate: State<'_, ControlGate>,
+) -> Result<ActionResult, String> {
+    let _guard = gate.0.lock().await;
     state
         .0
         .start(parse_service(service)?)
@@ -81,7 +95,12 @@ async fn start_service(service: &str, state: State<'_, AppState>) -> Result<Acti
 }
 
 #[tauri::command]
-async fn stop_service(service: &str, state: State<'_, AppState>) -> Result<ActionResult, String> {
+async fn stop_service(
+    service: &str,
+    state: State<'_, AppState>,
+    gate: State<'_, ControlGate>,
+) -> Result<ActionResult, String> {
+    let _guard = gate.0.lock().await;
     state
         .0
         .stop(parse_service(service)?)
@@ -93,7 +112,9 @@ async fn stop_service(service: &str, state: State<'_, AppState>) -> Result<Actio
 async fn restart_service(
     service: &str,
     state: State<'_, AppState>,
+    gate: State<'_, ControlGate>,
 ) -> Result<ActionResult, String> {
+    let _guard = gate.0.lock().await;
     state
         .0
         .restart(parse_service(service)?)
@@ -102,7 +123,11 @@ async fn restart_service(
 }
 
 #[tauri::command]
-async fn start_stack(state: State<'_, AppState>) -> Result<ActionResult, String> {
+async fn start_stack(
+    state: State<'_, AppState>,
+    gate: State<'_, ControlGate>,
+) -> Result<ActionResult, String> {
+    let _guard = gate.0.lock().await;
     state
         .0
         .start_stack()
@@ -111,7 +136,11 @@ async fn start_stack(state: State<'_, AppState>) -> Result<ActionResult, String>
 }
 
 #[tauri::command]
-async fn stop_managed_stack(state: State<'_, AppState>) -> Result<ActionResult, String> {
+async fn stop_managed_stack(
+    state: State<'_, AppState>,
+    gate: State<'_, ControlGate>,
+) -> Result<ActionResult, String> {
+    let _guard = gate.0.lock().await;
     state
         .0
         .stop_managed_stack()
@@ -124,7 +153,9 @@ async fn pull_model(
     model: &str,
     app: AppHandle,
     state: State<'_, AppState>,
+    gate: State<'_, ControlGate>,
 ) -> Result<ActionResult, String> {
+    let _guard = gate.0.lock().await;
     state
         .0
         .pull_model_with_progress(model, move |progress| {
@@ -135,7 +166,12 @@ async fn pull_model(
 }
 
 #[tauri::command]
-async fn unload_model(model: &str, state: State<'_, AppState>) -> Result<ActionResult, String> {
+async fn unload_model(
+    model: &str,
+    state: State<'_, AppState>,
+    gate: State<'_, ControlGate>,
+) -> Result<ActionResult, String> {
+    let _guard = gate.0.lock().await;
     state
         .0
         .unload_model(model)
@@ -144,7 +180,11 @@ async fn unload_model(model: &str, state: State<'_, AppState>) -> Result<ActionR
 }
 
 #[tauri::command]
-async fn unload_all_models(state: State<'_, AppState>) -> Result<ActionResult, String> {
+async fn unload_all_models(
+    state: State<'_, AppState>,
+    gate: State<'_, ControlGate>,
+) -> Result<ActionResult, String> {
+    let _guard = gate.0.lock().await;
     state
         .0
         .unload_all_models()
@@ -153,7 +193,12 @@ async fn unload_all_models(state: State<'_, AppState>) -> Result<ActionResult, S
 }
 
 #[tauri::command]
-async fn delete_model(model: &str, state: State<'_, AppState>) -> Result<ActionResult, String> {
+async fn delete_model(
+    model: &str,
+    state: State<'_, AppState>,
+    gate: State<'_, ControlGate>,
+) -> Result<ActionResult, String> {
+    let _guard = gate.0.lock().await;
     state
         .0
         .delete_model(model)
@@ -162,7 +207,11 @@ async fn delete_model(model: &str, state: State<'_, AppState>) -> Result<ActionR
 }
 
 #[tauri::command]
-async fn prepare_harness_profile(state: State<'_, AppState>) -> Result<ActionResult, String> {
+async fn prepare_harness_profile(
+    state: State<'_, AppState>,
+    gate: State<'_, ControlGate>,
+) -> Result<ActionResult, String> {
+    let _guard = gate.0.lock().await;
     state
         .0
         .prepare_harness_profile()
@@ -171,7 +220,11 @@ async fn prepare_harness_profile(state: State<'_, AppState>) -> Result<ActionRes
 }
 
 #[tauri::command]
-async fn install_harness_companion(state: State<'_, AppState>) -> Result<ActionResult, String> {
+async fn install_harness_companion(
+    state: State<'_, AppState>,
+    gate: State<'_, ControlGate>,
+) -> Result<ActionResult, String> {
+    let _guard = gate.0.lock().await;
     state
         .0
         .install_harness_companion()
@@ -183,7 +236,9 @@ async fn install_harness_companion(state: State<'_, AppState>) -> Result<ActionR
 async fn install_managed_ollama(
     app: AppHandle,
     state: State<'_, AppState>,
+    gate: State<'_, ControlGate>,
 ) -> Result<ActionResult, String> {
+    let _guard = gate.0.lock().await;
     state
         .0
         .install_managed_ollama_with_progress(move |progress: RuntimeInstallProgress| {
@@ -194,7 +249,11 @@ async fn install_managed_ollama(
 }
 
 #[tauri::command]
-async fn rollback_managed_ollama(state: State<'_, AppState>) -> Result<ActionResult, String> {
+async fn rollback_managed_ollama(
+    state: State<'_, AppState>,
+    gate: State<'_, ControlGate>,
+) -> Result<ActionResult, String> {
+    let _guard = gate.0.lock().await;
     state
         .0
         .rollback_managed_ollama()
@@ -203,7 +262,11 @@ async fn rollback_managed_ollama(state: State<'_, AppState>) -> Result<ActionRes
 }
 
 #[tauri::command]
-async fn install_managed_harness(state: State<'_, AppState>) -> Result<ActionResult, String> {
+async fn install_managed_harness(
+    state: State<'_, AppState>,
+    gate: State<'_, ControlGate>,
+) -> Result<ActionResult, String> {
+    let _guard = gate.0.lock().await;
     state
         .0
         .install_managed_harness()
@@ -212,7 +275,11 @@ async fn install_managed_harness(state: State<'_, AppState>) -> Result<ActionRes
 }
 
 #[tauri::command]
-async fn rollback_managed_harness(state: State<'_, AppState>) -> Result<ActionResult, String> {
+async fn rollback_managed_harness(
+    state: State<'_, AppState>,
+    gate: State<'_, ControlGate>,
+) -> Result<ActionResult, String> {
+    let _guard = gate.0.lock().await;
     state
         .0
         .rollback_managed_harness()
@@ -221,7 +288,11 @@ async fn rollback_managed_harness(state: State<'_, AppState>) -> Result<ActionRe
 }
 
 #[tauri::command]
-async fn complete_setup(state: State<'_, AppState>) -> Result<ActionResult, String> {
+async fn complete_setup(
+    state: State<'_, AppState>,
+    gate: State<'_, ControlGate>,
+) -> Result<ActionResult, String> {
+    let _guard = gate.0.lock().await;
     state
         .0
         .complete_setup()
@@ -265,7 +336,9 @@ async fn install_app_update(
     app: AppHandle,
     state: State<'_, AppState>,
     pending: State<'_, PendingUpdate>,
+    gate: State<'_, ControlGate>,
 ) -> Result<(), String> {
+    let _guard = gate.0.lock().await;
     let snapshot = state
         .0
         .snapshot()
@@ -323,9 +396,26 @@ pub fn run() {
     let supervisor = tauri::async_runtime::block_on(StackSupervisor::discover())
         .expect("failed to initialize the Local Agent Stack supervisor");
     tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            tray::show_main_window(app);
+        }))
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(AppState(supervisor))
         .manage(PendingUpdate(Mutex::new(None)))
+        .manage(ControlGate::default())
+        .manage(TrayControlState::default())
+        .setup(|app| {
+            tray::install(app)?;
+            Ok(())
+        })
+        .on_window_event(|window, event| {
+            if window.label() == "main"
+                && let WindowEvent::CloseRequested { api, .. } = event
+            {
+                api.prevent_close();
+                let _ = window.hide();
+            }
+        })
         .invoke_handler(tauri::generate_handler![
             get_snapshot,
             get_config,

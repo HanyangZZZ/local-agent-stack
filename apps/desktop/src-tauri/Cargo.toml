@@ -16,7 +16,8 @@ tauri-build = { version = "2", features = [] }
 local-stack-core = { path = "../../../crates/local-stack-core" }
 serde.workspace = true
 serde_json.workspace = true
-tauri = { version = "2", features = [] }
+tauri = { version = "2", features = ["tray-icon"] }
+tauri-plugin-single-instance = "2"
 tokio.workspace = true
 
 [target.'cfg(any(target_os = "macos", windows, target_os = "linux"))'.dependencies]

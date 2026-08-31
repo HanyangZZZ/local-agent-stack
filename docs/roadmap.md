@@ -30,8 +30,9 @@
 - [x] App-owned, pinned Ollama installation.
 - [x] Verified runtime downloads, secure extraction and atomic activation.
 - [x] Managed-runtime rollback and stale staging cleanup.
+- [x] Background system-tray supervisor with single-instance relaunch.
 - macOS and Linux builds.
-- Background tray supervisor and verified PID reattachment.
+- Verified PID reattachment after unexpected supervisor termination.
 
 ## 0.4 — Trusted distribution
 
