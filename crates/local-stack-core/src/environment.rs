@@ -44,7 +44,7 @@ fn default_ollama_path() -> Option<String> {
 async fn inspect_nvidia(executable: PathBuf) -> Vec<GpuSnapshot> {
     let mut command = Command::new(executable);
     command.args([
-        "--query-gpu=name,driver_version,memory.total,memory.used,memory.free",
+        "--query-gpu=name,driver_version,memory.total,memory.used,memory.free,utilization.gpu",
         "--format=csv,noheader,nounits",
     ]);
     #[cfg(windows)]
@@ -64,7 +64,7 @@ fn parse_nvidia_csv(value: &str) -> Vec<GpuSnapshot> {
         .lines()
         .filter_map(|line| {
             let fields: Vec<_> = line.split(',').map(str::trim).collect();
-            if fields.len() != 5 {
+            if fields.len() != 6 {
                 return None;
             }
             Some(GpuSnapshot {
@@ -73,6 +73,7 @@ fn parse_nvidia_csv(value: &str) -> Vec<GpuSnapshot> {
                 memory_total_mib: fields[2].parse().ok()?,
                 memory_used_mib: fields[3].parse().ok()?,
                 memory_free_mib: fields[4].parse().ok()?,
+                utilization_percent: fields[5].parse().ok(),
             })
         })
         .collect()
@@ -85,12 +86,13 @@ mod tests {
     #[test]
     fn parses_multiple_nvidia_gpus() {
         let result = parse_nvidia_csv(
-            "NVIDIA GeForce RTX 5090, 581.80, 32607, 12288, 20319\nNVIDIA RTX 4000, 581.80, 16376, 16, 16360\n",
+            "NVIDIA GeForce RTX 5090, 581.80, 32607, 12288, 20319, 97\nNVIDIA RTX 4000, 581.80, 16376, 16, 16360, 2\n",
         );
         assert_eq!(result.len(), 2);
         assert_eq!(result[0].name, "NVIDIA GeForce RTX 5090");
         assert_eq!(result[0].memory_total_mib, 32607);
         assert_eq!(result[1].memory_free_mib, 16360);
+        assert_eq!(result[0].utilization_percent, Some(97));
     }
 
     #[test]

@@ -8,6 +8,7 @@ export interface ServiceSnapshot {
   version?: string;
   managed: boolean;
   pid?: number;
+  launchUrl?: string;
   message?: string;
 }
 
@@ -87,6 +88,7 @@ export interface GpuSnapshot {
   memoryTotalMib: number;
   memoryUsedMib: number;
   memoryFreeMib: number;
+  utilizationPercent?: number;
 }
 
 export interface PullProgress {
@@ -130,6 +132,105 @@ export interface StackConfig {
   managedHarnessSource?: string;
   managedHarnessEntrypoint?: string;
   setupCompleted: boolean;
+  trace: TraceConfig;
+}
+
+export interface TraceConfig {
+  enabled: boolean;
+  sessionRoot?: string;
+  gpuSampleIntervalMs: number;
+  inferenceSlots: number;
+}
+
+export interface TraceSessionSummary {
+  id: string;
+  title: string;
+  cwd: string;
+  preset?: string;
+  model?: string;
+  createdAt: number;
+  updatedAt: number;
+  eventCount: number;
+  branchCount: number;
+  status: string;
+}
+
+export type TraceRole = "supervisor" | "subagent" | "workflow";
+
+export interface TraceBranch {
+  id: string;
+  parentId?: string;
+  label: string;
+  role: TraceRole;
+  contextId: string;
+  forked: boolean;
+  createdAt: number;
+  removedAt?: number;
+  status: string;
+}
+
+export interface TraceEvent {
+  id: string;
+  index: number;
+  time: number;
+  sequence?: number;
+  branchId: string;
+  eventType: string;
+  label: string;
+  message: string;
+  turn?: number;
+  step?: number;
+  contextTokens?: number;
+  contextWindow?: number;
+  contextPercent?: number;
+  outputTokens?: number;
+  streamChunks: number;
+  rawEventCount: number;
+  foldedEventTypes: string[];
+  rawRecords: unknown[];
+  raw: unknown;
+}
+
+export interface TraceEdge {
+  from: string;
+  to: string;
+  kind: "same" | "spawn" | "fork" | "report" | "consultation" | "workflow";
+  label: string;
+}
+
+export interface TraceLease {
+  id: string;
+  slot: number;
+  branchId: string;
+  requestEventId: string;
+  responseEventId?: string;
+  requestedAt: number;
+  startedAt: number;
+  endedAt: number;
+  contextTokens?: number;
+  contextWindow?: number;
+  contextPercent?: number;
+  model?: string;
+  source: string;
+}
+
+export interface TraceTelemetrySample {
+  time: number;
+  gpu?: GpuSnapshot;
+  runningModels: RunningModel[];
+}
+
+export interface TraceReplay {
+  session: TraceSessionSummary;
+  source: string;
+  maxSlots: number;
+  startTime: number;
+  endTime: number;
+  branches: TraceBranch[];
+  events: TraceEvent[];
+  edges: TraceEdge[];
+  leases: TraceLease[];
+  telemetry: TraceTelemetrySample[];
 }
 
 export interface ActionResult {

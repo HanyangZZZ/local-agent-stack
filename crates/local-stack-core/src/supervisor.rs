@@ -8,6 +8,7 @@ use std::{
 };
 
 use directories::BaseDirs;
+use sysinfo::{Pid, System};
 use tokio::{
     fs::{self, OpenOptions},
     io::{AsyncReadExt, AsyncSeekExt},
@@ -16,6 +17,10 @@ use tokio::{
     time::{sleep, timeout},
 };
 
+use crate::process_registry::{
+    ManagedProcessRecord, ProcessRegistry, find_matching_processes, inspect_process,
+    record_matches_process,
+};
 use crate::{
     ActionResult, ConfigStore, ManagedRuntimeStore, OllamaClient, PullProgress, Result,
     RuntimeInstallProgress, ServiceKind, ServiceLogTail, ServiceSnapshot, ServiceState,
@@ -34,6 +39,8 @@ pub struct StackSupervisor {
     store: ConfigStore,
     config: Arc<RwLock<StackConfig>>,
     children: Arc<Mutex<HashMap<ServiceKind, Child>>>,
+    process_registry: ProcessRegistry,
+    process_system: Arc<Mutex<System>>,
     http: reqwest::Client,
     download_http: reqwest::Client,
     managed_runtimes: ManagedRuntimeStore,
@@ -47,6 +54,12 @@ impl StackSupervisor {
 
     pub async fn new(store: ConfigStore) -> Result<Self> {
         let config = store.load().await?;
+        let process_registry_path = store
+            .path()
+            .parent()
+            .ok_or_else(|| StackError::Config("configuration path has no parent".into()))?
+            .join("processes.json");
+        let process_registry = ProcessRegistry::at(process_registry_path).await?;
         let managed_runtimes = ManagedRuntimeStore::discover()?;
         for kind in [ServiceKind::Ollama, ServiceKind::Harness] {
             let _ = managed_runtimes
@@ -57,6 +70,8 @@ impl StackSupervisor {
             store,
             config: Arc::new(RwLock::new(config)),
             children: Arc::new(Mutex::new(HashMap::new())),
+            process_registry,
+            process_system: Arc::new(Mutex::new(System::new_all())),
             http: reqwest::Client::builder()
                 .timeout(Duration::from_secs(3))
                 .build()?,
@@ -117,7 +132,7 @@ impl StackSupervisor {
         let ollama_online = ollama_version.is_ok();
         let ollama_version = ollama_version.ok();
 
-        let managed = self.managed_processes().await;
+        let managed = self.managed_process_records().await?;
         let installed_models = if ollama_online {
             ollama_client.installed_models().await.unwrap_or_default()
         } else {
@@ -173,7 +188,8 @@ impl StackSupervisor {
                 url: config.ollama.url,
                 version: ollama_version,
                 managed: managed.contains_key(&ServiceKind::Ollama),
-                pid: managed.get(&ServiceKind::Ollama).copied(),
+                pid: managed.get(&ServiceKind::Ollama).map(|record| record.pid),
+                launch_url: None,
                 message: None,
             },
             harness: ServiceSnapshot {
@@ -186,8 +202,11 @@ impl StackSupervisor {
                 url: config.harness.url,
                 version: harness_version,
                 managed: managed.contains_key(&ServiceKind::Harness),
-                pid: managed.get(&ServiceKind::Harness).copied(),
-                message: None,
+                pid: managed.get(&ServiceKind::Harness).map(|record| record.pid),
+                launch_url: managed
+                    .get(&ServiceKind::Harness)
+                    .and_then(|record| record.authenticated_url.clone()),
+                message: harness_status_message(harness_online, managed.get(&ServiceKind::Harness)),
             },
             installed_models,
             running_models,
@@ -218,6 +237,10 @@ impl StackSupervisor {
         };
         let (executable, args) = resolve_launch(kind, service.command.as_deref(), &service.args)?;
         let log_path = self.log_path(kind).await?;
+        let log_start = fs::metadata(&log_path)
+            .await
+            .map(|metadata| metadata.len())
+            .unwrap_or(0);
         let stdout = OpenOptions::new()
             .create(true)
             .append(true)
@@ -238,18 +261,65 @@ impl StackSupervisor {
         #[cfg(windows)]
         command.creation_flags(CREATE_NO_WINDOW);
 
-        let child = command.spawn()?;
-        let pid = child.id();
+        let mut child = command.spawn()?;
+        let pid = child.id().ok_or_else(|| {
+            StackError::Config(format!("{kind} started without a process identifier"))
+        })?;
+        let started_at_unix = match self.process_identity(pid).await {
+            Some(record) => record.started_at_unix,
+            None => {
+                let _ = child.kill().await;
+                let _ = child.wait().await;
+                return Err(StackError::Config(format!(
+                    "could not verify the identity of the new {kind} process"
+                )));
+            }
+        };
+        let record = ManagedProcessRecord {
+            kind,
+            pid,
+            started_at_unix,
+            executable: executable.to_string_lossy().into_owned(),
+            args: args.clone(),
+            authenticated_url: None,
+        };
+        if let Err(error) = self.process_registry.upsert(record).await {
+            let _ = child.kill().await;
+            let _ = child.wait().await;
+            return Err(error);
+        }
         self.children.lock().await.insert(kind, child);
 
         for _ in 0..20 {
             sleep(Duration::from_millis(400)).await;
-            if self.is_online(kind, &service.url).await {
-                return Ok(ActionResult::success(format!(
-                    "{kind} started (PID {})",
-                    pid.unwrap_or_default()
+            if let Some(status) = self.child_exit_status(kind).await {
+                let _ = self.process_registry.remove(kind).await;
+                return Err(StackError::Config(format!(
+                    "{kind} exited during startup with status {status}"
                 )));
             }
+            let authenticated_url = if kind == ServiceKind::Harness {
+                read_harness_authenticated_url(&log_path, log_start, &service.url).await?
+            } else {
+                None
+            };
+            if authenticated_url.is_some() {
+                self.process_registry
+                    .set_authenticated_url(kind, authenticated_url.clone())
+                    .await?;
+            }
+            if self.is_online(kind, &service.url).await
+                && (kind != ServiceKind::Harness || authenticated_url.is_some())
+            {
+                return Ok(ActionResult::success(format!("{kind} started (PID {pid})")));
+            }
+        }
+
+        if kind == ServiceKind::Harness {
+            let _ = self.stop(kind).await;
+            return Err(StackError::Config(
+                "Harness became reachable without publishing its authenticated Web URL; its process was stopped to avoid an unusable workspace".into(),
+            ));
         }
 
         Ok(ActionResult::success(format!(
@@ -258,17 +328,29 @@ impl StackSupervisor {
     }
 
     pub async fn stop(&self, kind: ServiceKind) -> Result<ActionResult> {
-        let mut child = self
-            .children
-            .lock()
-            .await
+        self.reap_exited().await;
+        let record = self
+            .managed_process_records()
+            .await?
             .remove(&kind)
             .ok_or_else(|| StackError::NotManaged(kind.to_string()))?;
-        if let Err(error) = child.kill().await {
-            self.children.lock().await.insert(kind, child);
-            return Err(error.into());
+
+        if let Some(mut child) = self.children.lock().await.remove(&kind) {
+            if child.id() != Some(record.pid) {
+                self.children.lock().await.insert(kind, child);
+                return Err(StackError::Config(format!(
+                    "refusing to stop {kind}: the live child identity changed"
+                )));
+            }
+            if let Err(error) = child.kill().await {
+                self.children.lock().await.insert(kind, child);
+                return Err(error.into());
+            }
+            let _ = child.wait().await;
+        } else {
+            self.stop_registered_process(&record).await?;
         }
-        let _ = child.wait().await;
+        self.process_registry.remove(kind).await?;
         Ok(ActionResult::success(format!("{kind} stopped")))
     }
 
@@ -322,7 +404,7 @@ impl StackSupervisor {
 
     pub async fn stop_managed_stack(&self) -> Result<ActionResult> {
         self.reap_exited().await;
-        let managed = self.managed_processes().await;
+        let managed = self.managed_process_records().await?;
         let plan = stack_stop_plan(
             managed.contains_key(&ServiceKind::Ollama),
             managed.contains_key(&ServiceKind::Harness),
@@ -359,7 +441,7 @@ impl StackSupervisor {
     }
 
     pub async fn restart(&self, kind: ServiceKind) -> Result<ActionResult> {
-        if self.children.lock().await.contains_key(&kind) {
+        if self.managed_process_records().await?.contains_key(&kind) {
             self.stop(kind).await?;
             sleep(Duration::from_millis(500)).await;
         } else {
@@ -432,6 +514,7 @@ impl StackSupervisor {
     where
         F: FnMut(RuntimeInstallProgress) + Send,
     {
+        self.ensure_runtime_stopped(ServiceKind::Ollama).await?;
         let artifact = embedded_artifact(
             ServiceKind::Ollama,
             std::env::consts::OS,
@@ -494,6 +577,7 @@ impl StackSupervisor {
     }
 
     pub async fn rollback_managed_ollama(&self) -> Result<ActionResult> {
+        self.ensure_runtime_stopped(ServiceKind::Ollama).await?;
         let executable = self.managed_runtimes.rollback(ServiceKind::Ollama).await?;
         let detected = inspect_ollama_executable(&executable).await?;
         let mut config = self.config().await;
@@ -628,6 +712,7 @@ impl StackSupervisor {
     }
 
     pub async fn install_managed_harness(&self) -> Result<ActionResult> {
+        self.ensure_runtime_stopped(ServiceKind::Harness).await?;
         let mut config = self.config().await;
         let requirement = embedded_manifest()?
             .components
@@ -713,6 +798,7 @@ impl StackSupervisor {
     }
 
     pub async fn rollback_managed_harness(&self) -> Result<ActionResult> {
+        self.ensure_runtime_stopped(ServiceKind::Harness).await?;
         let executable = self.managed_runtimes.rollback(ServiceKind::Harness).await?;
         let entrypoint = executable
             .parent()
@@ -736,27 +822,146 @@ impl StackSupervisor {
         )))
     }
 
-    async fn managed_processes(&self) -> HashMap<ServiceKind, u32> {
-        self.children
-            .lock()
-            .await
-            .iter()
-            .filter_map(|(kind, child)| child.id().map(|pid| (*kind, pid)))
-            .collect()
+    async fn managed_process_records(&self) -> Result<HashMap<ServiceKind, ManagedProcessRecord>> {
+        self.reconcile_managed_processes().await?;
+        Ok(self.process_registry.records().await)
+    }
+
+    async fn ensure_runtime_stopped(&self, kind: ServiceKind) -> Result<()> {
+        if self.managed_process_records().await?.contains_key(&kind) {
+            return Err(StackError::Config(format!(
+                "stop the app-managed {kind} process before changing its runtime release"
+            )));
+        }
+        Ok(())
+    }
+
+    async fn reconcile_managed_processes(&self) -> Result<()> {
+        let mut records = self.process_registry.records().await;
+        {
+            let mut system = self.process_system.lock().await;
+            system.refresh_all();
+            records.retain(|_, record| record_matches_process(record, &system));
+        }
+
+        let stored = self.process_registry.records().await;
+        for (kind, record) in stored {
+            if !records.contains_key(&kind) {
+                self.process_registry.remove(kind).await?;
+                if self.children.lock().await.get(&kind).and_then(Child::id) == Some(record.pid) {
+                    self.children.lock().await.remove(&kind);
+                }
+            }
+        }
+
+        let config = self.config().await;
+        for kind in [ServiceKind::Ollama, ServiceKind::Harness] {
+            if records.contains_key(&kind) {
+                continue;
+            }
+            let service = match kind {
+                ServiceKind::Ollama => &config.ollama,
+                ServiceKind::Harness => &config.harness,
+            };
+            let Ok((executable, args)) =
+                resolve_launch(kind, service.command.as_deref(), &service.args)
+            else {
+                continue;
+            };
+            if !self
+                .managed_runtimes
+                .owns_executable(kind, &executable)
+                .await
+            {
+                continue;
+            }
+            let mut matches = {
+                let mut system = self.process_system.lock().await;
+                system.refresh_all();
+                find_matching_processes(&system, &executable, &args)
+            };
+            if matches.len() != 1 {
+                continue;
+            }
+            let mut record = matches.remove(0);
+            record.kind = kind;
+            record.executable = executable.to_string_lossy().into_owned();
+            record.args = args;
+            record.authenticated_url = None;
+            self.process_registry.upsert(record.clone()).await?;
+            records.insert(kind, record);
+        }
+        Ok(())
     }
 
     async fn reap_exited(&self) {
         let mut children = self.children.lock().await;
         let exited: Vec<_> = children
             .iter_mut()
-            .filter_map(|(kind, child)| match child.try_wait() {
-                Ok(Some(_)) => Some(*kind),
+            .filter_map(|(kind, child)| match (child.id(), child.try_wait()) {
+                (Some(pid), Ok(Some(_))) => Some((*kind, pid)),
                 _ => None,
             })
             .collect();
-        for kind in exited {
+        for (kind, _) in &exited {
             children.remove(&kind);
         }
+        drop(children);
+        let records = self.process_registry.records().await;
+        for (kind, pid) in exited {
+            if records.get(&kind).is_some_and(|record| record.pid == pid) {
+                let _ = self.process_registry.remove(kind).await;
+            }
+        }
+    }
+
+    async fn child_exit_status(&self, kind: ServiceKind) -> Option<String> {
+        let mut children = self.children.lock().await;
+        let status = children.get_mut(&kind)?.try_wait().ok()??;
+        children.remove(&kind);
+        Some(status.to_string())
+    }
+
+    async fn process_identity(&self, pid: u32) -> Option<ManagedProcessRecord> {
+        let mut system = self.process_system.lock().await;
+        system.refresh_all();
+        inspect_process(&system, pid)
+    }
+
+    async fn stop_registered_process(&self, record: &ManagedProcessRecord) -> Result<()> {
+        let signal_sent = {
+            let mut system = self.process_system.lock().await;
+            system.refresh_all();
+            if !record_matches_process(record, &system) {
+                return Ok(());
+            }
+            system
+                .process(Pid::from_u32(record.pid))
+                .is_some_and(|process| process.kill())
+        };
+        if !signal_sent {
+            let mut system = self.process_system.lock().await;
+            system.refresh_all();
+            if !record_matches_process(record, &system) {
+                return Ok(());
+            }
+            return Err(StackError::Config(format!(
+                "the operating system refused to stop {} PID {}",
+                record.kind, record.pid
+            )));
+        }
+        for _ in 0..50 {
+            sleep(Duration::from_millis(100)).await;
+            let mut system = self.process_system.lock().await;
+            system.refresh_all();
+            if !record_matches_process(record, &system) {
+                return Ok(());
+            }
+        }
+        Err(StackError::Config(format!(
+            "{} PID {} did not exit within five seconds",
+            record.kind, record.pid
+        )))
     }
 
     async fn log_path(&self, kind: ServiceKind) -> Result<PathBuf> {
@@ -781,9 +986,7 @@ impl StackSupervisor {
                 .get(url)
                 .send()
                 .await
-                .map(|response| {
-                    response.status().is_success() || response.status().is_redirection()
-                })
+                .map(|response| harness_http_status_is_online(response.status()))
                 .unwrap_or(false),
         }
     }
@@ -1200,6 +1403,77 @@ fn stack_start_plan(ollama_online: bool, harness_online: bool) -> Vec<ServiceKin
     .collect()
 }
 
+fn harness_status_message(online: bool, record: Option<&ManagedProcessRecord>) -> Option<String> {
+    if !online {
+        return None;
+    }
+    match record {
+        Some(record) if record.authenticated_url.is_some() => {
+            Some("Authenticated workspace ready".into())
+        }
+        Some(_) => Some(
+            "Managed process recovered after Alpha restarted; restart Harness once to issue a new authenticated workspace URL".into(),
+        ),
+        None => Some(
+            "Reachable external process; Alpha cannot recover its private browser launch token"
+                .into(),
+        ),
+    }
+}
+
+async fn read_harness_authenticated_url(
+    path: &Path,
+    start: u64,
+    configured_url: &str,
+) -> Result<Option<String>> {
+    let metadata = match fs::metadata(path).await {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(error.into()),
+    };
+    if metadata.len() <= start {
+        return Ok(None);
+    }
+    let mut file = fs::File::open(path).await?;
+    file.seek(SeekFrom::Start(start)).await?;
+    let mut bytes = Vec::with_capacity((metadata.len() - start) as usize);
+    file.read_to_end(&mut bytes).await?;
+    let text = String::from_utf8_lossy(&bytes);
+    Ok(text
+        .lines()
+        .rev()
+        .find_map(|line| parse_harness_authenticated_url(line, configured_url)))
+}
+
+fn parse_harness_authenticated_url(line: &str, configured_url: &str) -> Option<String> {
+    let at = line.find("dsh web: http")?;
+    let candidate = line[at + "dsh web: ".len()..].split_whitespace().next()?;
+    let candidate = reqwest::Url::parse(candidate).ok()?;
+    let configured = reqwest::Url::parse(configured_url).ok()?;
+    let same_origin = candidate.scheme() == configured.scheme()
+        && candidate.host_str() == configured.host_str()
+        && candidate.port_or_known_default() == configured.port_or_known_default();
+    let query = candidate.query_pairs().collect::<Vec<_>>();
+    if !same_origin
+        || candidate.path() != "/"
+        || query.len() != 1
+        || query[0].0 != "token"
+        || query[0].1.is_empty()
+    {
+        return None;
+    }
+    Some(candidate.into())
+}
+
+/// Whether the configured loopback Harness endpoint proves that its server is
+/// reachable. Harness exchanges a process launch token for a persistent browser
+/// cookie, so an unauthenticated control-plane probe correctly receives 401.
+/// Treating that authentication challenge as offline makes Start launch a
+/// duplicate process onto the occupied port.
+fn harness_http_status_is_online(status: reqwest::StatusCode) -> bool {
+    status.is_success() || status.is_redirection() || status == reqwest::StatusCode::UNAUTHORIZED
+}
+
 fn stack_stop_plan(ollama_managed: bool, harness_managed: bool) -> Vec<ServiceKind> {
     [
         harness_managed.then_some(ServiceKind::Harness),
@@ -1317,6 +1591,48 @@ mod tests {
         assert_eq!(stack_start_plan(false, true), [ServiceKind::Ollama]);
         assert_eq!(stack_start_plan(true, false), [ServiceKind::Harness]);
         assert!(stack_start_plan(true, true).is_empty());
+    }
+
+    #[test]
+    fn accepts_harness_browser_auth_challenge_as_online() {
+        for status in [
+            reqwest::StatusCode::OK,
+            reqwest::StatusCode::SEE_OTHER,
+            reqwest::StatusCode::UNAUTHORIZED,
+        ] {
+            assert!(harness_http_status_is_online(status));
+        }
+
+        for status in [
+            reqwest::StatusCode::NOT_FOUND,
+            reqwest::StatusCode::INTERNAL_SERVER_ERROR,
+        ] {
+            assert!(!harness_http_status_is_online(status));
+        }
+    }
+
+    #[test]
+    fn extracts_only_the_authenticated_url_for_the_configured_harness_origin() {
+        let line = "dsh web: http://127.0.0.1:3000/?token=abc_123-XYZ (LAN: http://192.168.1.2:3000/?token=abc_123-XYZ)";
+        assert_eq!(
+            parse_harness_authenticated_url(line, "http://127.0.0.1:3000"),
+            Some("http://127.0.0.1:3000/?token=abc_123-XYZ".into())
+        );
+        assert!(parse_harness_authenticated_url(line, "http://127.0.0.1:3001").is_none());
+        assert!(
+            parse_harness_authenticated_url(
+                "dsh web: http://127.0.0.1:3000/",
+                "http://127.0.0.1:3000"
+            )
+            .is_none()
+        );
+        assert!(
+            parse_harness_authenticated_url(
+                "dsh web: http://127.0.0.1:3000/?token=one&token=two",
+                "http://127.0.0.1:3000"
+            )
+            .is_none()
+        );
     }
 
     #[test]

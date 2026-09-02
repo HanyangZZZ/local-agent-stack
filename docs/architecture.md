@@ -11,6 +11,58 @@ integrations are adapters behind typed Rust interfaces. The future Harness
 bundle is a thin user-interface bridge to the independent local supervisor, so
 the supervisor remains usable when Harness is stopped or broken.
 
+Ultra Trace belongs to the independent desktop control plane. Harness remains
+the authority for model-visible inputs, completed model output, tool calls,
+subagent lineage, and workflow lifecycle records. The recorder reads those
+append-only JSONL or Zstandard JSONL artifacts without rewriting them, joins
+descendant sessions, and derives a replay projection for the desktop. This is
+not a Harness UI fork and does not require a permanently loaded plugin.
+
+The optional Harness companion remains a thin status command. A later push
+adapter may reduce live-view latency, but it must feed the same recorder schema;
+the durable Harness log remains the recovery source when either process was
+stopped.
+
+## Ultra Trace recorder
+
+The replay projection is lossless but uses logical-operation granularity. A set
+of human and Harness-injected `user/message` records becomes one input node; a
+request header, context declaration, streaming fragments, completed response,
+and step lifecycle become one model-execution node; a tool call and its matching
+result become one tool-execution node. Workflow routing events remain explicit
+because they change the agent graph. Every original record—including streaming
+reasoning/text/tool-call fragments and routine turn bookkeeping—remains attached
+to its logical node and is available in folded sections. The detail panel
+separates the human message, injected runtime context, skill catalog, system
+prompt, model and adapter configuration, tool/MCP schemas, messages, reasoning,
+output, usage, lifecycle metadata, and complete raw records.
+
+The viewer advances through semantic scenes rather than individual nodes. It
+topologically layers causal edges so parallel fan-out, tool work, reports, and
+slot changes can appear together at one playhead step. All known lanes are laid
+out consistently and transition from not-created to active to history-only.
+This keeps the graph spatially stable while agents and workflows dynamically
+enter, leave, and reuse physical inference slots.
+
+Context lineage owns graph color. A spawned session receives its own context
+identity; a fork reuses the parent context identity and adds a striped visual
+treatment. Durable `tool-workflow/run-start`, member start/end, and run-end
+records create workflow branches and membership/report edges. Removed branches
+leave active slots but remain visible as history.
+
+Inference slots and queues are a derived projection. Each `request/header` to
+`assistant/message` interval becomes a lease, and overlapping intervals are
+assigned to the configured slot count in request order. A request that cannot
+start until an earlier interval ends appears in the queue. Ollama does not
+publish its physical scheduler queue, so the UI labels this state as derived
+instead of claiming provider-internal precision.
+
+While the desktop is open, a background sampler records NVIDIA VRAM and GPU
+utilization plus loaded Ollama models to day-partitioned, local JSONL files.
+Historical sessions created before the recorder ran correctly show telemetry as
+unavailable rather than fabricating values. Trace recording is configurable and
+never enters diagnostic exports.
+
 ## Bring-your-own and managed installations
 
 Version 0.1 implements bring-your-own installation discovery, an app-owned
@@ -38,14 +90,24 @@ active or previous releases.
 
 ## Service lifecycle
 
-The supervisor records child handles for processes it launches. Stop and
-restart operations are accepted only for those children. A service discovered
-through an HTTP health check is shown as external and is never terminated using
-port-based or process-name-based guesses.
+The supervisor persists one process record per app-owned service. Each record
+contains the PID, executable, complete launch arguments, operating-system
+creation timestamp, and the authenticated Harness launch URL when applicable.
+Every snapshot reconciles the record against the live operating-system process;
+a stale record is removed, and a stop is refused unless identity still matches.
 
-Long-term reattachment will use a persisted process record containing the PID,
-executable identity, creation timestamp and per-launch nonce. All fields must be
-verified before termination.
+After an application crash or update, an exact process from an app-owned
+versioned runtime can be reattached when its executable and command line match
+the configured launch. Port ownership and process names are never used as a
+termination guess. Independently installed processes remain external and are
+never stopped by the application.
+
+Harness browser authentication is a separate lifecycle artifact. The
+supervisor captures the per-process URL printed by `dsh web` only from output
+written after that process was spawned and persists it alongside the verified
+process identity. The desktop opens Harness as a first-party WebView window so
+its strict, authority-bound authentication cookie works as designed. The
+control panel never weakens Harness authentication or proxies its API.
 
 ## Configuration transactions
 
@@ -74,6 +136,7 @@ existing target profile is never overwritten.
 - Use a random per-install secret for any HTTP bridge.
 - Expose typed, allowlisted operations; never expose an arbitrary shell RPC.
 - Redact secrets and user prompts from diagnostic bundles.
+- Never include the Harness launch token or process registry in diagnostics.
 - Require an explicit user action before downloads, upgrades or process stops.
 
 ## Compatibility

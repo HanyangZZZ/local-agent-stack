@@ -2,6 +2,8 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getVersion } from "@tauri-apps/api/app";
 import "./styles.css";
+import "./trace-timeline-view.css";
+import { TraceViewer } from "./trace-timeline-view";
 import type { ActionResult, AppUpdateMetadata, AppUpdateProgress, PullProgress, RuntimeInstallProgress, ServiceKind, ServiceLogTail, ServiceSnapshot, StackConfig, StackSnapshot, TrayActionFeedback } from "./types";
 
 const app = document.querySelector<HTMLDivElement>("#app");
@@ -10,7 +12,7 @@ if (!app) throw new Error("Application root is missing");
 let snapshot: StackSnapshot | undefined;
 let config: StackConfig | undefined;
 let busy = false;
-let workspaceVisible = false;
+let activeView = "dashboard";
 let onboardingShown = false;
 let setupVerified = false;
 let noticeTimer: number | undefined;
@@ -29,6 +31,7 @@ app.innerHTML = `
         <nav aria-label="Application views">
           <button class="nav active" data-view="dashboard"><span class="nav-icon">⌂</span><span>Control center</span></button>
           <button class="nav" data-view="workspace"><span class="nav-icon">⌘</span><span>Harness workspace</span></button>
+          <button class="nav" data-view="trace"><span class="nav-icon">⌁</span><span>Ultra trace</span></button>
         </nav>
       </div>
       <div class="sidebar-spacer"></div>
@@ -57,7 +60,7 @@ app.innerHTML = `
             <div class="compatibility-strip" id="compatibility-strip"></div>
           </section>
           <section class="section-block">
-            <div class="section-heading"><div><h2>Services</h2><p>Only processes started here can be stopped here</p></div></div>
+            <div class="section-heading"><div><h2>Services</h2><p>App-owned processes remain manageable after Alpha restarts</p></div></div>
             <div class="service-grid" id="service-grid"><div class="skeleton"></div><div class="skeleton"></div></div>
           </section>
           <section class="section-block">
@@ -71,6 +74,7 @@ app.innerHTML = `
           <footer><span id="config-path"></span><span>Close hides to tray · Apache-2.0</span></footer>
         </section>
         <section id="workspace-view" class="workspace hidden"><div class="workspace-empty"><h2>Harness is not available</h2><p>Start Harness from the control center, then refresh this workspace.</p></div></section>
+        <section id="trace-view" class="hidden"></section>
       </main>
     </div>
   </div>
@@ -84,6 +88,10 @@ app.innerHTML = `
       <label>Harness home<input id="harness-home" placeholder="Auto-detect ~/.dsh"></label>
       <label>Harness arguments<input id="harness-args" placeholder="web --port 3000"></label>
       <label>Managed profile<input id="harness-profile" required></label>
+      <div class="settings-divider"><p class="eyebrow">ULTRA TRACE RECORDER</p></div>
+      <label class="checkbox-label"><input id="trace-enabled" type="checkbox"> Record GPU telemetry while Alpha is open</label>
+      <label>Harness session store<input id="trace-session-root" placeholder="Auto-detect ~/.dsh/sessions"></label>
+      <div class="settings-pair"><label>Inference slots<input id="trace-slots-setting" type="number" min="1" max="16" required></label><label>GPU sample interval (ms)<input id="trace-interval-setting" type="number" min="250" max="60000" required></label></div>
       <p class="hint">Version 0.1 accepts loopback URLs only. Arguments are separated by spaces; quoted argument editing is planned.</p>
       <div class="dialog-actions"><button value="cancel" class="secondary">Cancel</button><button value="default" class="primary" id="save-settings">Save settings</button></div>
     </form>
@@ -121,6 +129,8 @@ const $ = <T extends Element>(selector: string): T => {
   return element;
 };
 
+const traceViewer = new TraceViewer($("#trace-view"));
+
 function bytes(value: number): string {
   if (!value) return "0 B";
   const units = ["B", "KB", "MB", "GB", "TB"];
@@ -134,6 +144,7 @@ function serviceCard(service: ServiceSnapshot): string {
   return `<article class="service-card">
     <div class="service-title"><div class="service-icon ${service.kind}">${service.kind === "ollama" ? "O" : "H"}</div><div><h2>${service.kind === "ollama" ? "Ollama" : "DeepSeek Harness"}</h2><p>${service.url}</p></div><span class="status ${service.state}"><i></i>${service.state}</span></div>
     <div class="facts"><div><span>VERSION</span><strong>${service.version ?? "—"}</strong></div><div><span>OWNERSHIP</span><strong>${service.managed ? `Managed · PID ${service.pid}` : online ? "External" : "Not running"}</strong></div></div>
+    ${service.message ? `<p class="service-message">${escapeHtml(service.message)}</p>` : ""}
     <div class="card-actions">
       <button class="primary service-action" data-action="start" data-service="${service.kind}" ${online ? "disabled" : ""}>Start</button>
       <button class="secondary service-action" data-action="restart" data-service="${service.kind}" ${!canStop ? "disabled" : ""}>Restart</button>
@@ -171,8 +182,8 @@ function render(): void {
   const managedOllama = snapshot.managedOllama;
   const managedHarness = snapshot.managedHarness;
   $("#runtime-management").innerHTML = `
-    <div class="runtime-item"><div><p class="eyebrow">APP-OWNED OLLAMA</p><strong>${managedOllama.installed ? `Ollama ${managedOllama.currentVersion}` : "No managed Ollama release"}</strong><span>${managedOllama.installed ? `Verified release active${managedOllama.previousVersion ? ` · Previous ${managedOllama.previousVersion}` : ""}` : "Official archive · 1.36 GB download · SHA-256 verified"}</span></div><div class="runtime-actions"><button class="secondary" id="install-managed-ollama">${managedOllama.installed ? "Reinstall verified release" : "Install verified Ollama"}</button><button class="secondary" id="rollback-managed-ollama" ${managedOllama.canRollback ? "" : "disabled"}>Rollback</button></div></div>
-    <div class="runtime-item"><div><p class="eyebrow">APP-OWNED HARNESS</p><strong>${managedHarness.installed ? `Harness ${managedHarness.currentVersion}` : "Harness is externally installed"}</strong><span>${managedHarness.installed ? `Versioned release active${managedHarness.previousVersion ? ` · Previous ${managedHarness.previousVersion}` : ""}` : "Import a tested copy without modifying the existing Harness installation."}</span></div><div class="runtime-actions"><button class="secondary" id="install-managed-harness">${managedHarness.installed ? "Re-import tested release" : "Import managed Harness"}</button><button class="secondary" id="rollback-managed-harness" ${managedHarness.canRollback ? "" : "disabled"}>Rollback</button></div></div>`;
+    <div class="runtime-item"><div><p class="eyebrow">APP-OWNED OLLAMA</p><strong>${managedOllama.installed ? `Ollama ${managedOllama.currentVersion}` : "No managed Ollama release"}</strong><span>${managedOllama.installed ? `Verified release active${managedOllama.previousVersion ? ` · Previous ${managedOllama.previousVersion}` : ""}` : "Official archive · 1.36 GB download · SHA-256 verified"}</span></div><div class="runtime-actions"><button class="secondary" id="install-managed-ollama" ${snapshot.ollama.managed ? "disabled" : ""}>${managedOllama.installed ? "Reinstall verified release" : "Install verified Ollama"}</button><button class="secondary" id="rollback-managed-ollama" ${managedOllama.canRollback && !snapshot.ollama.managed ? "" : "disabled"}>Rollback</button></div></div>
+    <div class="runtime-item"><div><p class="eyebrow">APP-OWNED HARNESS</p><strong>${managedHarness.installed ? `Harness ${managedHarness.currentVersion}` : "Harness is externally installed"}</strong><span>${managedHarness.installed ? `Versioned release active${managedHarness.previousVersion ? ` · Previous ${managedHarness.previousVersion}` : ""}` : "Import a tested copy without modifying the existing Harness installation."}</span></div><div class="runtime-actions"><button class="secondary" id="install-managed-harness" ${snapshot.harness.managed ? "disabled" : ""}>${managedHarness.installed ? "Re-import tested release" : "Import managed Harness"}</button><button class="secondary" id="rollback-managed-harness" ${managedHarness.canRollback && !snapshot.harness.managed ? "" : "disabled"}>Rollback</button></div></div>`;
 
   const running = new Map(snapshot.runningModels.map((model) => [model.name, model]));
   const releaseAllButton = $("#release-all-vram") as HTMLButtonElement;
@@ -224,6 +235,10 @@ function render(): void {
 
 function escapeAttribute(value: string): string {
   return value.replaceAll("&", "&amp;").replaceAll('"', "&quot;").replaceAll("<", "&lt;");
+}
+
+function escapeHtml(value: string): string {
+  return escapeAttribute(value).replaceAll(">", "&gt;");
 }
 
 async function refresh(): Promise<void> {
@@ -335,28 +350,42 @@ void listen<TrayActionFeedback>("tray-action-result", ({ payload }) => {
 });
 
 function updateWorkspace(): void {
-  if (!snapshot || !workspaceVisible) return;
+  if (!snapshot || activeView !== "workspace") return;
   const view = $("#workspace-view");
-  if (snapshot.harness.state === "online") {
-    const current = view.querySelector<HTMLIFrameElement>("iframe");
-    if (!current || current.src !== snapshot.harness.url + "/") {
-      view.innerHTML = `<iframe src="${escapeAttribute(snapshot.harness.url)}" title="DeepSeek Harness"></iframe>`;
-    }
+  if (snapshot.harness.state === "online" && snapshot.harness.launchUrl) {
+    view.innerHTML = '<div class="workspace-empty"><h2>Harness is ready</h2><p>It opens as a first-party application window so DeepSeek Harness can complete its secure browser authentication.</p><button class="primary" id="open-harness-window" type="button">Open Harness</button></div>';
+    view.querySelector<HTMLButtonElement>("#open-harness-window")?.addEventListener("click", () => {
+      void runAction(() => invoke<ActionResult>("open_harness"));
+    });
+  } else if (snapshot.harness.state === "online") {
+    const recover = snapshot.harness.managed
+      ? '<button class="primary" id="recover-harness-auth" type="button">Restart Harness and authenticate</button>'
+      : "";
+    view.innerHTML = `<div class="workspace-empty"><h2>Harness authentication is required</h2><p>${escapeHtml(snapshot.harness.message ?? "Alpha does not have the authenticated URL for this Harness process.")}</p>${recover}</div>`;
+    view.querySelector<HTMLButtonElement>("#recover-harness-auth")?.addEventListener("click", () => {
+      void runAction(() => invoke<ActionResult>("restart_service", { service: "harness" }));
+    });
   } else {
     view.innerHTML = `<div class="workspace-empty"><h2>Harness is not available</h2><p>Start Harness from the control center, then refresh this workspace.</p></div>`;
   }
 }
 
 function selectView(name: string): void {
-  workspaceVisible = name === "workspace";
-  $("#dashboard-view").classList.toggle("hidden", workspaceVisible);
-  $("#workspace-view").classList.toggle("hidden", !workspaceVisible);
+  activeView = name;
+  $("#dashboard-view").classList.toggle("hidden", name !== "dashboard");
+  $("#workspace-view").classList.toggle("hidden", name !== "workspace");
+  $("#trace-view").classList.toggle("hidden", name !== "trace");
   document.querySelectorAll(".nav").forEach((item) => item.classList.toggle("active", (item as HTMLElement).dataset.view === name));
-  $("#view-title").textContent = workspaceVisible ? "Harness workspace" : "Control center";
-  updateWorkspace();
+  $("#view-title").textContent = name === "workspace" ? "Harness workspace" : name === "trace" ? "Ultra trace" : "Control center";
+  if (name === "workspace") updateWorkspace();
+  if (name === "trace") void traceViewer.activate();
+  else traceViewer.deactivate();
 }
 
-$("#refresh-button").addEventListener("click", refresh);
+$("#refresh-button").addEventListener("click", () => {
+  if (activeView === "trace") void traceViewer.refresh();
+  else void refresh();
+});
 $("#start-stack").addEventListener("click", () => {
   void runAction(() => invoke<ActionResult>("start_stack"));
 });
@@ -387,7 +416,9 @@ $("#update-button").addEventListener("click", async () => {
 $("#diagnostics-button").addEventListener("click", () => {
   void runAction(() => invoke<ActionResult>("export_diagnostics"));
 });
-$("#launch-button").addEventListener("click", () => selectView("workspace"));
+$("#launch-button").addEventListener("click", () => {
+  void runAction(() => invoke<ActionResult>("open_harness"));
+});
 document.querySelectorAll<HTMLButtonElement>(".nav").forEach((button) => button.addEventListener("click", () => selectView(button.dataset.view ?? "dashboard")));
 
 $("#pull-form").addEventListener("submit", async (event) => {
@@ -416,6 +447,10 @@ async function openSettings(): Promise<void> {
   ($("#harness-home") as HTMLInputElement).value = config.harnessHome ?? "";
   ($("#harness-args") as HTMLInputElement).value = config.harness.args.join(" ");
   ($("#harness-profile") as HTMLInputElement).value = config.harnessProfile;
+  ($("#trace-enabled") as HTMLInputElement).checked = config.trace.enabled;
+  ($("#trace-session-root") as HTMLInputElement).value = config.trace.sessionRoot ?? "";
+  ($("#trace-slots-setting") as HTMLInputElement).value = String(config.trace.inferenceSlots);
+  ($("#trace-interval-setting") as HTMLInputElement).value = String(config.trace.gpuSampleIntervalMs);
   dialog.showModal();
 }
 
@@ -433,6 +468,12 @@ $("#settings-form").addEventListener("submit", async (event) => {
     managedHarnessSource: config.managedHarnessSource,
     managedHarnessEntrypoint: config.managedHarnessEntrypoint,
     setupCompleted: config.setupCompleted,
+    trace: {
+      enabled: ($("#trace-enabled") as HTMLInputElement).checked,
+      sessionRoot: ($("#trace-session-root") as HTMLInputElement).value.trim() || undefined,
+      inferenceSlots: Number((($("#trace-slots-setting") as HTMLInputElement).value)),
+      gpuSampleIntervalMs: Number((($("#trace-interval-setting") as HTMLInputElement).value)),
+    },
   };
   await runAction(() => invoke<ActionResult>("save_config", { config: updated }));
   config = updated;

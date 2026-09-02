@@ -67,6 +67,20 @@ impl ManagedRuntimeStore {
         })
     }
 
+    pub async fn owns_executable(&self, kind: ServiceKind, executable: &Path) -> bool {
+        let releases = self.component_dir(kind).join("releases");
+        if !releases.is_dir() || !executable.is_file() {
+            return false;
+        }
+        let Ok(releases) = fs::canonicalize(releases).await else {
+            return false;
+        };
+        let Ok(executable) = fs::canonicalize(executable).await else {
+            return false;
+        };
+        executable.starts_with(releases)
+    }
+
     pub async fn create_staging_directory(
         &self,
         kind: ServiceKind,

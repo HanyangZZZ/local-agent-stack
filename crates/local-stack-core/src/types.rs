@@ -34,6 +34,7 @@ pub struct ServiceSnapshot {
     pub version: Option<String>,
     pub managed: bool,
     pub pid: Option<u32>,
+    pub launch_url: Option<String>,
     pub message: Option<String>,
 }
 
@@ -101,6 +102,8 @@ pub struct GpuSnapshot {
     pub memory_total_mib: u64,
     pub memory_used_mib: u64,
     pub memory_free_mib: u64,
+    #[serde(default)]
+    pub utilization_percent: Option<u64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

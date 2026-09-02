@@ -10,10 +10,11 @@
 - [x] Transactional stack start and ownership-safe managed stack shutdown.
 - [x] Bounded, local-only service log viewer with missing-log and truncation handling.
 - [x] Managed Ollama and Harness child-process start/stop/restart.
-- [x] Embedded Harness workspace.
+- [x] Authenticated first-party Harness application window.
 - [x] Streaming model-pull progress.
 - [x] NVIDIA driver and GPU diagnostics.
 - [x] Redacted diagnostic bundle export.
+- [x] Playable Ultra Trace reconstruction for model I/O, contexts, agents, workflows, queues, slots, and GPU telemetry.
 - [ ] Signed Windows installer.
 
 ## 0.2 — Safe Harness configuration
@@ -32,7 +33,7 @@
 - [x] Managed-runtime rollback and stale staging cleanup.
 - [x] Background system-tray supervisor with single-instance relaunch.
 - macOS and Linux builds.
-- Verified PID reattachment after unexpected supervisor termination.
+- [x] Verified PID reattachment after unexpected supervisor termination.
 
 ## 0.4 — Trusted distribution
 

@@ -71,6 +71,8 @@ fn redact_snapshot(snapshot: &mut StackSnapshot) {
     snapshot.config_path = "[redacted]".into();
     snapshot.ollama.message = None;
     snapshot.harness.message = None;
+    snapshot.ollama.launch_url = None;
+    snapshot.harness.launch_url = None;
     snapshot.environment.node_path = executable_name(snapshot.environment.node_path.as_deref());
     snapshot.environment.git_path = executable_name(snapshot.environment.git_path.as_deref());
     snapshot.environment.ollama_path = executable_name(snapshot.environment.ollama_path.as_deref());

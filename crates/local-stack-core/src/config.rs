@@ -30,6 +30,29 @@ pub struct StackConfig {
     pub managed_harness_entrypoint: Option<String>,
     #[serde(default)]
     pub setup_completed: bool,
+    #[serde(default)]
+    pub trace: TraceConfig,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TraceConfig {
+    pub enabled: bool,
+    #[serde(default)]
+    pub session_root: Option<String>,
+    pub gpu_sample_interval_ms: u64,
+    pub inference_slots: usize,
+}
+
+impl Default for TraceConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            session_root: None,
+            gpu_sample_interval_ms: 1_000,
+            inference_slots: 4,
+        }
+    }
 }
 
 impl Default for StackConfig {
@@ -58,6 +81,7 @@ impl Default for StackConfig {
             managed_harness_source: None,
             managed_harness_entrypoint: None,
             setup_completed: false,
+            trace: TraceConfig::default(),
         }
     }
 }
@@ -140,6 +164,16 @@ fn validate(config: &StackConfig) -> Result<()> {
     }
     if config.harness_profile.trim().is_empty() {
         return Err(StackError::Config("Harness profile cannot be empty".into()));
+    }
+    if !(250..=60_000).contains(&config.trace.gpu_sample_interval_ms) {
+        return Err(StackError::Config(
+            "Trace GPU sampling interval must be between 250 and 60000 milliseconds".into(),
+        ));
+    }
+    if !(1..=16).contains(&config.trace.inference_slots) {
+        return Err(StackError::Config(
+            "Trace inference slots must be between 1 and 16".into(),
+        ));
     }
     Ok(())
 }

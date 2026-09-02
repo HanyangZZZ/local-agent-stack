@@ -8,7 +8,7 @@ The initial Windows release manages:
 
 - Ollama health, installed models, running models, VRAM use, downloads, per-model unloads, and one-click release of all model VRAM.
 - Verified, versioned Ollama installation with transactional activation and rollback.
-- DeepSeek Harness health and a dedicated, app-managed launch process.
+- DeepSeek Harness health, authenticated application-window launch, and a dedicated app-managed process.
 - One-click stack start with rollback on partial failure, plus ownership-safe shutdown that never terminates external services.
 - A single-instance system-tray supervisor with stack start/stop, one-click VRAM release, and ownership-safe quit controls.
 - In-app bounded Ollama and Harness log tails for local troubleshooting; logs remain local and are excluded from diagnostic exports.
@@ -16,7 +16,8 @@ The initial Windows release manages:
 - Guided first-run setup, editable runtime configuration, and redacted diagnostics.
 - Version-aware compatibility status for independently updated runtimes.
 - Signature-enforced in-app desktop updates with release-pipeline key isolation.
-- An embedded Harness workspace that remains separate from the control plane.
+- A first-party Harness WebView window that preserves upstream browser authentication while remaining separate from the control plane.
+- A playable Ultra Trace recorder that reconstructs complete model requests and responses, agent/workflow lineage, context occupancy, GPU telemetry, request queues, and reusable inference-slot leases from Harness's append-only session records.
 
 > [!IMPORTANT]
 > This repository is an early working foundation. Service control is deliberately
@@ -31,12 +32,16 @@ flowchart TB
     Core --> Env[Environment Adapter]
     Core --> Ollama[Ollama HTTP Adapter]
     Core --> Harness[Harness Process Adapter]
+    Core --> Recorder[Ultra Trace Recorder]
     Core --> Config[Transactional Configuration]
     Ollama --> OllamaAPI[Ollama Local API]
     Harness --> Dsh[dsh CLI and Profile]
-    Dsh --> HarnessUI[Harness Web UI]
+    Dsh --> SessionLog[Harness Session Log]
+    SessionLog --> Recorder
+    Recorder --> TraceUI[Playable Trace Viewer]
+    Dsh --> HarnessUI[Authenticated Harness Window]
     HarnessUI --> OllamaAPI
-    Plugin[Optional Harness Plugin] -. later .-> Core
+    Companion[Optional Harness Companion] -. status only .-> Core
 ```
 
 See [docs/architecture.md](docs/architecture.md) for design boundaries and
@@ -62,6 +67,12 @@ To inspect the current machine without opening the desktop UI:
 
 ```powershell
 cargo run -p local-stack-core --example snapshot
+```
+
+To verify that the recorder can decode and reconstruct a real Harness session:
+
+```powershell
+cargo run -p local-stack-core --example inspect_trace -- <session-id>
 ```
 
 To create or validate the configured update-safe Harness profile:
@@ -121,7 +132,8 @@ untouched.
 The **Export diagnostics** action writes a timestamped JSON report to the
 current user's Downloads directory. It includes service, model, GPU, driver,
 and tool availability, but replaces full paths with executable names and omits
-process messages, command arguments, logs, prompts, and credentials.
+process messages, command arguments, logs, prompts, credentials, process
+registry records, and Harness launch URLs.
 
 Managed runtime workflows are available from **Runtime management**:
 
@@ -156,7 +168,9 @@ stack, stop only app-managed services, release all Ollama model VRAM, or quit.
 The quit action first stops app-managed child processes and never terminates an
 external Ollama or Harness process. Opening the desktop shortcut while the app
 is hidden restores the existing instance instead of starting a second control
-plane.
+plane. App-owned process identity is persisted and verified, so a newly started
+control plane can reattach to runtimes orphaned by an application crash or
+forced update without relying on a port or process-name guess.
 
 The compatibility strip uses [manifests/compatibility.json](manifests/compatibility.json)
 to distinguish tested versions from runtimes that are too old or newer than the

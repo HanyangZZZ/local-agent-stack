@@ -17,12 +17,13 @@
         "height": 820,
         "minWidth": 920,
         "minHeight": 640,
+        "zoomHotkeysEnabled": true,
         "resizable": true,
         "fullscreen": false
       }
     ],
     "security": {
-      "csp": "default-src 'self'; connect-src ipc: http://ipc.localhost; img-src 'self' asset: http://asset.localhost; style-src 'self' 'unsafe-inline'; frame-src http://127.0.0.1:* http://localhost:*"
+      "csp": "default-src 'self'; connect-src ipc: http://ipc.localhost; img-src 'self' asset: http://asset.localhost; style-src 'self' 'unsafe-inline'; frame-src 'none'"
     }
   },
   "bundle": {

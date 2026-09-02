@@ -6,7 +6,9 @@ mod environment;
 mod error;
 mod managed;
 mod ollama;
+mod process_registry;
 mod supervisor;
+mod trace;
 mod types;
 
 pub use artifact::{RuntimeInstallProgress, download_and_extract_verified};
@@ -14,7 +16,7 @@ pub use compatibility::{
     CompatibilityManifest, CompatibilityReport, CompatibilityState, ComponentCompatibility,
     ComponentRequirement, RuntimeArtifact, assess_versions, embedded_artifact, embedded_manifest,
 };
-pub use config::{ConfigStore, StackConfig};
+pub use config::{ConfigStore, StackConfig, TraceConfig};
 pub use diagnostics::export_diagnostics;
 pub use environment::inspect_environment;
 pub use error::{Result, StackError};
@@ -23,6 +25,7 @@ pub use managed::{
 };
 pub use ollama::OllamaClient;
 pub use supervisor::StackSupervisor;
+pub use trace::{TraceReplay, TraceSessionSummary, TraceStore, TraceTelemetrySample};
 pub use types::{
     ActionResult, EnvironmentSnapshot, GpuSnapshot, InstalledModel, PullProgress, RunningModel,
     ServiceKind, ServiceLogTail, ServiceSnapshot, ServiceState, StackSnapshot,
