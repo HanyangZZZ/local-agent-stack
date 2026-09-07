@@ -1,239 +1,230 @@
-# Local Agent Stack
+<p align="center">
+  <img src="assets/icon.svg" width="104" alt="Local Agent Stack logo">
+</p>
 
-[![Validate](https://github.com/HanyangZZZ/local-agent-stack/actions/workflows/validate.yml/badge.svg)](https://github.com/HanyangZZZ/local-agent-stack/actions/workflows/validate.yml)
-[![Release](https://img.shields.io/github/v/release/HanyangZZZ/local-agent-stack?include_prereleases)](https://github.com/HanyangZZZ/local-agent-stack/releases)
-[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+<h1 align="center">Local Agent Stack</h1>
 
-Local Agent Stack is an open-source desktop control plane for local AI coding
-agents. It can discover separately installed runtimes or install verified,
-app-owned runtime releases without forking their upstream projects.
+<p align="center">
+  <strong>Run the whole local-agent workstation from one place.</strong><br>
+  Install runtimes, launch Harness, control GPU memory, and replay every agent workflow—without giving up local ownership.
+</p>
 
-The initial Windows release manages:
+<p align="center">
+  <a href="https://github.com/HanyangZZZ/local-agent-stack/actions/workflows/validate.yml"><img alt="Validation status" src="https://github.com/HanyangZZZ/local-agent-stack/actions/workflows/validate.yml/badge.svg"></a>
+  <a href="https://github.com/HanyangZZZ/local-agent-stack/releases"><img alt="Latest release" src="https://img.shields.io/github/v/release/HanyangZZZ/local-agent-stack?include_prereleases&sort=semver&color=5ad3a3"></a>
+  <a href="LICENSE"><img alt="Apache 2.0 license" src="https://img.shields.io/badge/license-Apache--2.0-8b7cf6.svg"></a>
+  <img alt="Windows" src="https://img.shields.io/badge/platform-Windows-3578e5.svg">
+  <img alt="Local first" src="https://img.shields.io/badge/data-local--first-22a06b.svg">
+</p>
 
-- Ollama health, installed models, running models, VRAM use, downloads, per-model unloads, and one-click release of all model VRAM.
-- Verified, versioned Ollama installation with transactional activation and rollback.
-- DeepSeek Harness health, authenticated application-window launch, and a dedicated app-managed process.
-- One-click stack start with rollback on partial failure, plus ownership-safe shutdown that never terminates external services.
-- A single-instance system-tray supervisor with stack start/stop, one-click VRAM release, and ownership-safe quit controls.
-- In-app bounded Ollama and Harness log tails for local troubleshooting; logs remain local and are excluded from diagnostic exports.
-- An update-safe Harness profile and optional `/local-stack` companion command.
-- Guided first-run setup, editable runtime configuration, and redacted diagnostics.
-- Version-aware compatibility status for independently updated runtimes.
-- Signature-enforced in-app desktop updates with release-pipeline key isolation.
-- A first-party Harness WebView window that preserves upstream browser authentication while remaining separate from the control plane.
-- A playable Ultra Trace recorder that reconstructs complete model requests and responses, agent/workflow lineage, context occupancy, GPU telemetry, request queues, and reusable inference-slot leases from Harness's append-only session records.
+<p align="center">
+  <a href="https://github.com/HanyangZZZ/local-agent-stack/releases"><strong>Download the latest alpha</strong></a>
+  ·
+  <a href="docs/architecture.md">Architecture</a>
+  ·
+  <a href="docs/roadmap.md">Roadmap</a>
+  ·
+  <a href="CONTRIBUTING.md">Contribute</a>
+</p>
+
+<p align="center">
+  <img src="assets/readme-hero.svg" width="100%" alt="Local Agent Stack control center with Ollama, DeepSeek Harness, GPU controls, Ultra Trace, and four inference slots">
+</p>
+
+## Your local AI stack finally feels like one product
+
+Ollama runs the models. DeepSeek Harness runs the agents. Local Agent Stack is
+the independent desktop control plane that makes them easy to install, operate,
+observe, and recover.
+
+Bring your existing runtimes or let the app manage verified copies alongside
+them. Start the stack in one click, open the authenticated Harness workspace,
+watch GPU use, release VRAM immediately, and inspect complex agent execution in
+the playable Ultra Trace timeline.
 
 > [!IMPORTANT]
-> This repository is an early working foundation. Service control is deliberately
-> conservative: the application only stops processes it started itself.
+> Local Agent Stack is alpha software. The Windows desktop is the currently
+> tested target, and interfaces may change between prereleases.
 
-## Install
+## What makes it different
 
-Download the latest Windows installer from [GitHub Releases](https://github.com/HanyangZZZ/local-agent-stack/releases).
-This is alpha software: read the release notes, keep independent copies of
-important model and Harness configuration, and expect interfaces to change.
+| | |
+|---|---|
+| **One-click lifecycle**<br>Start, stop, or restart Ollama and Harness as one transactional stack. A partial startup rolls back cleanly. | **Real GPU control**<br>See loaded models and VRAM use, unload one model, or release all Ollama GPU memory immediately. |
+| **Bring your own—or go managed**<br>Keep independent installations untouched, or install verified app-owned runtime releases with rollback. | **Harness without authentication hacks**<br>Launch the real authenticated Harness UI in a dedicated application window using the URL issued by `dsh web`. |
+| **Ultra Trace observability**<br>Replay model I/O, reasoning, tools, agents, workflows, context occupancy, GPU telemetry, queues, and slot leases. | **Recovery instead of guesswork**<br>Reattach only to verified app-owned processes after a crash. Never kill a process merely because its name or port looks familiar. |
 
-The installer does not bundle models. Ollama and DeepSeek Harness can remain
-separately installed, or the application can manage verified runtime copies in
-its own application-data directory.
+## Ultra Trace: see the agent system, not a wall of logs
 
-## Architecture
+Ultra Trace reconstructs Harness's append-only session records into a readable,
+playable execution graph while keeping every original record available in folded
+detail.
 
-```mermaid
-flowchart TB
-    User --> Desktop[Desktop Control Center]
-    Desktop --> Core[Local Stack Core]
-    Core --> Env[Environment Adapter]
-    Core --> Ollama[Ollama HTTP Adapter]
-    Core --> Harness[Harness Process Adapter]
-    Core --> Recorder[Ultra Trace Recorder]
-    Core --> Config[Transactional Configuration]
-    Ollama --> OllamaAPI[Ollama Local API]
-    Harness --> Dsh[dsh CLI and Profile]
-    Dsh --> SessionLog[Harness Session Log]
-    SessionLog --> Recorder
-    Recorder --> TraceUI[Playable Trace Viewer]
-    Dsh --> HarnessUI[Authenticated Harness Window]
-    HarnessUI --> OllamaAPI
-    Companion[Optional Harness Companion] -. status only .-> Core
+- Step forward and backward through semantic execution scenes.
+- Follow supervisor, subagent, fork, tool, report, and dynamic-workflow routing.
+- Identify shared contexts by color and forks by striped context lineage.
+- Watch agents enter and leave four reusable inference slots over time.
+- See queued requests, context occupancy, GPU utilization, and VRAM at each step.
+- Expand any node to inspect the exact system prompt, injected context, tool/MCP
+  schemas, messages, reasoning, output, usage, and raw source records.
+
+The durable Harness log remains the source of truth. Ultra Trace reads and joins
+those records; it does not rewrite or replace Harness.
+
+## Built for safe local operation
+
+Local Agent Stack controls powerful local processes, so the safety boundary is
+deliberately narrow:
+
+- Management endpoints are loopback-only in the current release.
+- The app stops only child processes it launched and can still verify.
+- UI actions use typed, allowlisted operations—there is no arbitrary shell RPC.
+- Managed installs verify origin, size, SHA-256, archive paths, and executable
+  versions before atomic activation.
+- Failed installs and configuration changes preserve the previous working state.
+- Diagnostic exports redact paths and omit logs, prompts, arguments, credentials,
+  process records, and Harness launch URLs.
+- Desktop updates require a valid project updater signature.
+
+Read the full boundary in [SECURITY.md](SECURITY.md) and
+[docs/architecture.md](docs/architecture.md).
+
+## Quick start
+
+### Install the Windows alpha
+
+1. Download the newest installer from [GitHub Releases](https://github.com/HanyangZZZ/local-agent-stack/releases).
+2. Open Local Agent Stack and complete the guided setup checklist.
+3. Choose your existing Ollama/Harness installations or install managed copies.
+4. Select **Start stack**, then **Open Harness**.
+
+Models are not bundled. Ollama, DeepSeek Harness, and downloaded models remain
+subject to their own licenses.
+
+### Run from source
+
+You need Windows 10/11, Node.js 22+, pnpm 11, Rust stable with the MSVC
+toolchain, and Microsoft Edge WebView2 Runtime.
+
+```powershell
+git clone https://github.com/HanyangZZZ/local-agent-stack.git
+cd local-agent-stack
+pnpm install --frozen-lockfile
+pnpm dev
 ```
 
-See [docs/architecture.md](docs/architecture.md) for design boundaries and
-[docs/roadmap.md](docs/roadmap.md) for the staged implementation plan.
+Ollama and DeepSeek Harness are optional for UI development. Missing services
+appear as unavailable instead of preventing the control center from opening.
+
+## How it fits together
+
+```mermaid
+flowchart LR
+    User([You]) --> Desktop[Local Agent Stack]
+
+    subgraph Control[Independent control plane]
+        Desktop --> Core[Typed Rust core]
+        Core --> Lifecycle[Process lifecycle]
+        Core --> Runtime[Managed runtimes]
+        Core --> Trace[Ultra Trace recorder]
+        Core --> Diagnostics[Redacted diagnostics]
+    end
+
+    Lifecycle --> Ollama[Ollama]
+    Lifecycle --> Harness[DeepSeek Harness]
+    Runtime --> Ollama
+    Runtime --> Harness
+    Harness --> Sessions[(Append-only sessions)]
+    Sessions --> Trace
+    Trace --> Replay[Playable workflow graph]
+    Harness --> Models[Local model inference]
+    Models --> Ollama
+```
+
+The control plane remains useful even when Harness is stopped or unhealthy. It
+does not fork Ollama, replace the Harness agent loop, or silently take ownership
+of externally managed installations.
 
 ## Development
 
-Prerequisites:
-
-- Windows 10/11 for the currently tested desktop target.
-- Rust stable with the MSVC toolchain.
-- Node.js 22 or newer and pnpm 11.
-- Microsoft Edge WebView2 Runtime.
+Run the complete local quality gate before opening a pull request:
 
 ```powershell
-pnpm install
+pnpm install --frozen-lockfile
 pnpm check
 pnpm format:check
 pnpm lint
 pnpm test
-pnpm dev
+pnpm --filter @local-agent-stack/desktop build
+pnpm audit --audit-level high
 ```
 
-The repository is organized by ownership boundary:
+`pnpm check` also verifies release-version consistency, updater-key consistency,
+compatibility-manifest invariants, schema presence, tracked-file hygiene, and
+common secret patterns.
+
+<details>
+<summary><strong>Repository layout</strong></summary>
 
 ```text
 apps/desktop/                 Tauri desktop application and web UI
-crates/local-stack-core/      Runtime, lifecycle, configuration and trace logic
+crates/local-stack-core/      Runtime, lifecycle, configuration, and trace logic
 packages/harness-companion/   Optional read-only Harness integration
 manifests/                    Release-controlled runtime compatibility data
 schemas/                      Public JSON schemas
-scripts/                      Repository and local launch utilities
-docs/                         Architecture, roadmap and release documentation
+scripts/                      Repository verification and local launch utilities
+docs/                         Architecture, roadmap, and release documentation
 updater/                      Public updater key and signed release metadata
 ```
 
-`pnpm check` verifies release-version/key consistency, manifest invariants,
-tracked-file hygiene and TypeScript. See [CONTRIBUTING.md](CONTRIBUTING.md) for
-the full contribution workflow.
+</details>
 
-To inspect the current machine without opening the desktop UI:
+<details>
+<summary><strong>Useful core commands</strong></summary>
 
 ```powershell
+# Inspect this machine without opening the desktop UI
 cargo run -p local-stack-core --example snapshot
-```
 
-To verify that the recorder can decode and reconstruct a real Harness session:
-
-```powershell
+# Decode and reconstruct a Harness trace
 cargo run -p local-stack-core --example inspect_trace -- <session-id>
-```
 
-To create or validate the configured update-safe Harness profile:
-
-```powershell
+# Prepare and validate the isolated Harness profile
 cargo run -p local-stack-core --example prepare_profile
-```
 
-To export a support report without prompts, logs, credentials, or full paths:
-
-```powershell
+# Export a redacted support report
 cargo run -p local-stack-core --example export_diagnostics
-```
 
-To import the tested Harness installation into app-owned versioned storage and
-then smoke-test it on the isolated port used by development checks:
-
-```powershell
+# Import and smoke-test a managed Harness installation
 cargo run -p local-stack-core --example install_managed_harness
 cargo run -p local-stack-core --example smoke_managed_harness
-```
 
-To exercise the manifest-pinned Ollama installer from source, then verify its
-normal supervisor lifecycle:
-
-```powershell
+# Install and smoke-test the manifest-pinned Ollama runtime
 cargo run -p local-stack-core --example install_managed_ollama
 cargo run -p local-stack-core --example smoke_managed_ollama
 ```
 
-The managed Ollama download is currently about 1.36 GB. The installer performs
-a conservative free-space preflight of about 9.5 GB, streams the payload to a
-staging directory, verifies its release-controlled SHA-256 digest, securely
-extracts it, checks the reported version, and only then switches the active
-release. A failed operation leaves the prior release and configuration active.
+</details>
 
-Ollama and DeepSeek Harness remain optional during development. The dashboard
-will report them as unavailable rather than failing to launch.
+## Project status
 
-## Configuration
+The Windows/NVIDIA foundation, managed Ollama and Harness runtimes, authenticated
+Harness window, system-tray supervisor, signed updater pipeline, and Ultra Trace
+replay are implemented. The next major areas are broader runtime adapters,
+signed compatibility metadata, richer update channels, and macOS/Linux desktop
+support.
 
-The app stores its machine-local configuration outside the repository:
+See the [roadmap](docs/roadmap.md), [changelog](CHANGELOG.md), and
+[release checklist](docs/release-checklist.md) for details.
 
-```text
-%APPDATA%\localagentstack\Local Agent Stack\config\stack.json
-```
+## Contributing
 
-Defaults are `http://127.0.0.1:11434` for Ollama and
-`http://127.0.0.1:3000` for Harness. Commands and arguments can be changed in
-the Settings panel.
-
-On first launch, the setup checklist reviews those settings, prepares the
-isolated profile, installs the companion, and runs a local health check. Every
-step can be retried independently; choosing **Set up later** leaves runtimes
-untouched.
-
-The **Export diagnostics** action writes a timestamped JSON report to the
-current user's Downloads directory. It includes service, model, GPU, driver,
-and tool availability, but replaces full paths with executable names and omits
-process messages, command arguments, logs, prompts, credentials, process
-registry records, and Harness launch URLs.
-
-Managed runtime workflows are available from **Runtime management**:
-
-1. **Install managed Ollama** downloads the pinned official Windows archive,
-   verifies its size and SHA-256 digest, extracts only safe paths into app-owned
-   versioned storage, validates `ollama --version`, and atomically activates it.
-2. **Rollback Ollama** switches back to the previous validated app-owned release.
-
-The managed Harness workflow continues from the Harness service card:
-
-1. **Install managed Harness** imports the tested external Harness package and
-   a private Node executable into versioned app-owned storage. It validates the
-   copy before switching the app configuration and never changes the source.
-2. **Prepare profile** clones and validates an isolated profile without
-   changing the stock `web` profile.
-3. **Install companion** adds the versioned read-only bundle from the matching
-   GitHub release and validates the composition again.
-4. Start Harness from the control center and use `/local-stack` inside Harness
-   to view runtime and GPU-memory status.
-
-Each managed install receives a distinct release directory. The current and
-previous releases remain side by side, and **Rollback** atomically switches the
-active pointer after confirming the previous executable still exists. Runtime
-state is stored under the operating system's local application-data directory;
-full paths are excluded from diagnostic exports.
-
-## System tray
-
-Closing the dashboard hides it to the system tray instead of terminating the
-supervisor. A left click restores the dashboard; the tray menu can start the
-stack, stop only app-managed services, release all Ollama model VRAM, or quit.
-The quit action first stops app-managed child processes and never terminates an
-external Ollama or Harness process. Opening the desktop shortcut while the app
-is hidden restores the existing instance instead of starting a second control
-plane. App-owned process identity is persisted and verified, so a newly started
-control plane can reattach to runtimes orphaned by an application crash or
-forced update without relying on a port or process-name guess.
-
-The compatibility strip uses [manifests/compatibility.json](manifests/compatibility.json)
-to distinguish tested versions from runtimes that are too old or newer than the
-tested range. This manifest is release-controlled; it never updates or
-downgrades a separately installed runtime without an explicit user action.
-
-## Desktop updates
-
-The desktop updater accepts only artifacts signed by the project updater key.
-The public key is embedded in the binary; its private counterpart is stored
-outside the repository and in GitHub Actions' encrypted secret store. Release
-tags must exactly match the version in `tauri.conf.json`. The release workflow
-builds and signs the NSIS artifact, publishes its `.sig`, then advances the
-static manifest under `updater/latest.json`.
-
-On Windows, installing an update closes the application. The control center
-refuses to begin an update while a service it launched is still running, which
-prevents an owned Ollama or Harness child process from being orphaned. Updater
-signatures authenticate update content; a separately purchased or identity-
-validated Windows code-signing certificate is still needed to establish a
-SmartScreen publisher identity.
+Issues and focused pull requests are welcome. Start with
+[CONTRIBUTING.md](CONTRIBUTING.md), follow the
+[Code of Conduct](CODE_OF_CONDUCT.md), and use private vulnerability reporting
+as described in [SECURITY.md](SECURITY.md).
 
 ## License
 
-Apache-2.0. Local Agent Stack is free to use, modify and redistribute. Ollama,
-DeepSeek Harness and downloaded models remain governed by their own licenses.
-
-## Community and security
-
-Use [GitHub Issues](https://github.com/HanyangZZZ/local-agent-stack/issues) for
-reproducible bugs and focused feature proposals. Read [CONTRIBUTING.md](CONTRIBUTING.md)
-and [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) before contributing. Report
-security vulnerabilities privately as described in [SECURITY.md](SECURITY.md).
+Licensed under [Apache-2.0](LICENSE). Local Agent Stack is free to use, modify,
+and redistribute.

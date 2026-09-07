@@ -1,0 +1,168 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="560" viewBox="0 0 1280 560" role="img" aria-labelledby="title description">
+  <title id="title">Local Agent Stack desktop control center</title>
+  <desc id="description">A stylized preview showing healthy Ollama and Harness services, GPU memory controls, four inference slots, and an Ultra Trace workflow graph.</desc>
+  <defs>
+    <linearGradient id="background" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0d1715"/>
+      <stop offset="0.52" stop-color="#10151d"/>
+      <stop offset="1" stop-color="#171329"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#83f0c5"/>
+      <stop offset="1" stop-color="#48c796"/>
+    </linearGradient>
+    <linearGradient id="purple" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#b0a1ff"/>
+      <stop offset="1" stop-color="#7e6be8"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="160%">
+      <feDropShadow dx="0" dy="18" stdDeviation="20" flood-color="#000" flood-opacity="0.28"/>
+    </filter>
+    <filter id="glow" x="-100%" y="-100%" width="300%" height="300%">
+      <feGaussianBlur stdDeviation="12"/>
+    </filter>
+    <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse">
+      <path d="M32 0H0V32" fill="none" stroke="#fff" stroke-opacity="0.035"/>
+    </pattern>
+  </defs>
+
+  <rect width="1280" height="560" rx="28" fill="url(#background)"/>
+  <rect width="1280" height="560" rx="28" fill="url(#grid)"/>
+  <circle cx="160" cy="60" r="130" fill="#54d8a3" opacity="0.08" filter="url(#glow)"/>
+  <circle cx="1130" cy="510" r="180" fill="#8e7cf4" opacity="0.1" filter="url(#glow)"/>
+
+  <g filter="url(#shadow)">
+    <rect x="56" y="38" width="1168" height="484" rx="18" fill="#f8f9fb"/>
+    <rect x="56" y="38" width="1168" height="42" rx="18" fill="#20242b"/>
+    <path d="M56 62a18 18 0 0 0 18 18h1132a18 18 0 0 0 18-18v18H56z" fill="#20242b"/>
+    <circle cx="82" cy="59" r="5" fill="#ff6d6d"/>
+    <circle cx="100" cy="59" r="5" fill="#f7c75d"/>
+    <circle cx="118" cy="59" r="5" fill="#5ed592"/>
+    <rect x="532" y="51" width="272" height="16" rx="8" fill="#2d323b"/>
+    <circle cx="548" cy="59" r="3" fill="#62d5aa"/>
+    <text x="560" y="63" fill="#aeb6c2" font-family="Segoe UI,Arial,sans-serif" font-size="9">local agent stack · localhost</text>
+
+    <rect x="56" y="80" width="196" height="442" fill="#f1f3f6"/>
+    <line x1="252" y1="80" x2="252" y2="522" stroke="#dde1e7"/>
+    <rect x="75" y="100" width="30" height="30" rx="9" fill="#171b20"/>
+    <path d="M84 108v12c0 4 2 6 6 6h4" fill="none" stroke="url(#accent)" stroke-width="3.5" stroke-linecap="round"/>
+    <path d="M99 111c-1-2-3-3-6-3-4 0-6 2-6 5 0 3 3 4 6 5 4 1 6 2 6 5 0 3-3 5-7 5-3 0-6-1-7-3" fill="none" stroke="url(#accent)" stroke-width="2.8" stroke-linecap="round"/>
+    <circle cx="101" cy="108" r="1.8" fill="#a697ff"/>
+    <text x="116" y="113" fill="#20242a" font-family="Segoe UI,Arial,sans-serif" font-size="12" font-weight="700">Local Agent Stack</text>
+    <text x="116" y="127" fill="#818895" font-family="Segoe UI,Arial,sans-serif" font-size="8">CONTROL PLANE</text>
+
+    <text x="76" y="162" fill="#9aa1ac" font-family="Segoe UI,Arial,sans-serif" font-size="8" font-weight="700" letter-spacing="1.2">WORKSPACE</text>
+    <rect x="69" y="174" width="166" height="34" rx="8" fill="#fff" stroke="#dfe3e8"/>
+    <circle cx="87" cy="191" r="6" fill="#e9f7f1"/>
+    <path d="M84 191h6M87 188v6" stroke="#2a9f72" stroke-width="1.4" stroke-linecap="round"/>
+    <text x="101" y="195" fill="#252a31" font-family="Segoe UI,Arial,sans-serif" font-size="10" font-weight="600">Control center</text>
+    <text x="84" y="229" fill="#747c88" font-family="Segoe UI,Arial,sans-serif" font-size="10">◈  Harness</text>
+    <text x="84" y="259" fill="#747c88" font-family="Segoe UI,Arial,sans-serif" font-size="10">⌁  Ultra Trace</text>
+    <text x="84" y="289" fill="#747c88" font-family="Segoe UI,Arial,sans-serif" font-size="10">⚙  Settings</text>
+
+    <rect x="72" y="455" width="164" height="48" rx="10" fill="#eaf8f2"/>
+    <circle cx="88" cy="475" r="5" fill="#28a875"/>
+    <text x="101" y="474" fill="#21694f" font-family="Segoe UI,Arial,sans-serif" font-size="9" font-weight="700">Stack online</text>
+    <text x="101" y="488" fill="#659481" font-family="Segoe UI,Arial,sans-serif" font-size="8">2 services · 1 model</text>
+
+    <text x="280" y="112" fill="#15191f" font-family="Segoe UI,Arial,sans-serif" font-size="19" font-weight="700">Control center</text>
+    <text x="280" y="130" fill="#7c838e" font-family="Segoe UI,Arial,sans-serif" font-size="9">Run, inspect, and understand your complete local agent stack.</text>
+    <rect x="1058" y="101" width="70" height="28" rx="8" fill="#fff" stroke="#dfe3e8"/>
+    <text x="1075" y="119" fill="#4a525e" font-family="Segoe UI,Arial,sans-serif" font-size="9" font-weight="600">Release GPU</text>
+    <rect x="1136" y="101" width="65" height="28" rx="8" fill="#191d23"/>
+    <text x="1154" y="119" fill="#fff" font-family="Segoe UI,Arial,sans-serif" font-size="9" font-weight="600">Stop stack</text>
+
+    <rect x="280" y="151" width="268" height="116" rx="12" fill="#fff" stroke="#dfe3e8"/>
+    <rect x="296" y="168" width="32" height="32" rx="9" fill="#eef8f4"/>
+    <text x="305" y="189" fill="#23845f" font-family="Segoe UI,Arial,sans-serif" font-size="11" font-weight="800">OL</text>
+    <text x="340" y="181" fill="#252a31" font-family="Segoe UI,Arial,sans-serif" font-size="12" font-weight="700">Ollama</text>
+    <text x="340" y="195" fill="#89909a" font-family="Segoe UI,Arial,sans-serif" font-size="8">Managed runtime · v0.33.2</text>
+    <rect x="472" y="171" width="58" height="18" rx="9" fill="#e9f8f1"/>
+    <circle cx="483" cy="180" r="3" fill="#2ca876"/>
+    <text x="491" y="183" fill="#27805e" font-family="Segoe UI,Arial,sans-serif" font-size="7" font-weight="700">ONLINE</text>
+    <line x1="296" y1="211" x2="532" y2="211" stroke="#edf0f3"/>
+    <text x="296" y="229" fill="#979da5" font-family="Segoe UI,Arial,sans-serif" font-size="7">RUNNING MODEL</text>
+    <text x="296" y="245" fill="#3b424b" font-family="Segoe UI,Arial,sans-serif" font-size="9" font-weight="600">Qwen 27B · Q6_K</text>
+    <text x="466" y="229" fill="#979da5" font-family="Segoe UI,Arial,sans-serif" font-size="7">VRAM</text>
+    <text x="466" y="245" fill="#23845f" font-family="Segoe UI,Arial,sans-serif" font-size="9" font-weight="700">28.6 / 32 GB</text>
+
+    <rect x="562" y="151" width="268" height="116" rx="12" fill="#fff" stroke="#dfe3e8"/>
+    <rect x="578" y="168" width="32" height="32" rx="9" fill="#f0f1fc"/>
+    <text x="586" y="189" fill="#6758c8" font-family="Segoe UI,Arial,sans-serif" font-size="11" font-weight="800">DS</text>
+    <text x="622" y="181" fill="#252a31" font-family="Segoe UI,Arial,sans-serif" font-size="12" font-weight="700">DeepSeek Harness</text>
+    <text x="622" y="195" fill="#89909a" font-family="Segoe UI,Arial,sans-serif" font-size="8">Authenticated local workspace</text>
+    <rect x="754" y="171" width="58" height="18" rx="9" fill="#e9f8f1"/>
+    <circle cx="765" cy="180" r="3" fill="#2ca876"/>
+    <text x="773" y="183" fill="#27805e" font-family="Segoe UI,Arial,sans-serif" font-size="7" font-weight="700">ONLINE</text>
+    <line x1="578" y1="211" x2="814" y2="211" stroke="#edf0f3"/>
+    <text x="578" y="229" fill="#979da5" font-family="Segoe UI,Arial,sans-serif" font-size="7">PROFILE</text>
+    <text x="578" y="245" fill="#3b424b" font-family="Segoe UI,Arial,sans-serif" font-size="9" font-weight="600">local-agent-stack</text>
+    <rect x="714" y="222" width="98" height="26" rx="7" fill="#f7f7f9" stroke="#e2e4e9"/>
+    <text x="735" y="239" fill="#4d5460" font-family="Segoe UI,Arial,sans-serif" font-size="8" font-weight="600">Open Harness</text>
+
+    <rect x="844" y="151" width="357" height="116" rx="12" fill="#171b23"/>
+    <text x="862" y="176" fill="#dfe5ee" font-family="Segoe UI,Arial,sans-serif" font-size="10" font-weight="700">GPU MEMORY</text>
+    <text x="1167" y="176" text-anchor="end" fill="#7ee2ba" font-family="Segoe UI,Arial,sans-serif" font-size="9" font-weight="700">87%</text>
+    <rect x="862" y="190" width="321" height="8" rx="4" fill="#2b313c"/>
+    <rect x="862" y="190" width="279" height="8" rx="4" fill="url(#accent)"/>
+    <text x="862" y="219" fill="#798391" font-family="Segoe UI,Arial,sans-serif" font-size="7">NVIDIA RTX 5090</text>
+    <text x="862" y="241" fill="#f2f5f8" font-family="Segoe UI,Arial,sans-serif" font-size="18" font-weight="700">28.6 GB</text>
+    <text x="939" y="241" fill="#707986" font-family="Segoe UI,Arial,sans-serif" font-size="9">of 32 GB allocated</text>
+    <rect x="1094" y="218" width="89" height="28" rx="8" fill="#26312f" stroke="#40534c"/>
+    <text x="1111" y="236" fill="#82dfbc" font-family="Segoe UI,Arial,sans-serif" font-size="8" font-weight="700">Release VRAM</text>
+
+    <rect x="280" y="282" width="642" height="216" rx="12" fill="#fff" stroke="#dfe3e8"/>
+    <text x="298" y="307" fill="#262b32" font-family="Segoe UI,Arial,sans-serif" font-size="11" font-weight="700">Ultra Trace</text>
+    <text x="298" y="322" fill="#8b929c" font-family="Segoe UI,Arial,sans-serif" font-size="8">Playable agent, workflow, context, queue, and tool lineage</text>
+    <rect x="824" y="297" width="78" height="22" rx="7" fill="#f5f2ff"/>
+    <text x="840" y="312" fill="#705fd0" font-family="Segoe UI,Arial,sans-serif" font-size="8" font-weight="700">▶ PLAY TRACE</text>
+
+    <path d="M357 376C400 376 403 350 446 350" fill="none" stroke="#45b58a" stroke-width="2"/>
+    <path d="M357 376C404 376 408 423 455 423" fill="none" stroke="#45b58a" stroke-width="2" stroke-dasharray="5 4"/>
+    <path d="M539 350C577 350 578 368 616 368" fill="none" stroke="#8a75e8" stroke-width="2"/>
+    <path d="M539 350C577 350 578 326 616 326" fill="none" stroke="#8a75e8" stroke-width="2"/>
+    <path d="M706 326C744 326 745 368 783 368" fill="none" stroke="#8a75e8" stroke-width="2" stroke-dasharray="5 4"/>
+    <path d="M706 368C744 368 745 368 783 368" fill="none" stroke="#4ab68c" stroke-width="2"/>
+    <rect x="298" y="356" width="60" height="40" rx="9" fill="#eaf8f2" stroke="#a7dfc8"/>
+    <circle cx="313" cy="372" r="6" fill="#35a978"/>
+    <text x="324" y="374" fill="#286a51" font-family="Segoe UI,Arial,sans-serif" font-size="7" font-weight="700">SUPERVISOR</text>
+    <text x="310" y="388" fill="#67917f" font-family="Segoe UI,Arial,sans-serif" font-size="7">context A</text>
+    <rect x="446" y="330" width="93" height="40" rx="9" fill="#f1efff" stroke="#c8bef8"/>
+    <text x="458" y="348" fill="#6957c2" font-family="Segoe UI,Arial,sans-serif" font-size="8" font-weight="700">◇ WORKFLOW</text>
+    <text x="458" y="361" fill="#8a7dc0" font-family="Segoe UI,Arial,sans-serif" font-size="7">release audit</text>
+    <rect x="455" y="403" width="84" height="40" rx="9" fill="#edf8f4" stroke="#a7dfc8" stroke-dasharray="4 3"/>
+    <text x="467" y="421" fill="#2e795b" font-family="Segoe UI,Arial,sans-serif" font-size="8" font-weight="700">⌁ RESEARCH</text>
+    <text x="467" y="434" fill="#67917f" font-family="Segoe UI,Arial,sans-serif" font-size="7">fork A.1</text>
+    <rect x="616" y="306" width="90" height="40" rx="9" fill="#f1efff" stroke="#c8bef8"/>
+    <text x="628" y="324" fill="#6957c2" font-family="Segoe UI,Arial,sans-serif" font-size="8" font-weight="700">⌁ CODE AGENT</text>
+    <text x="628" y="337" fill="#8a7dc0" font-family="Segoe UI,Arial,sans-serif" font-size="7">context B</text>
+    <rect x="616" y="348" width="90" height="40" rx="9" fill="#eef9f5" stroke="#aedfcd"/>
+    <text x="628" y="366" fill="#2e795b" font-family="Segoe UI,Arial,sans-serif" font-size="8" font-weight="700">⌕ AUDIT AGENT</text>
+    <text x="628" y="379" fill="#67917f" font-family="Segoe UI,Arial,sans-serif" font-size="7">context C</text>
+    <rect x="783" y="348" width="104" height="40" rx="9" fill="#fff7e8" stroke="#ead39d"/>
+    <text x="795" y="366" fill="#916b22" font-family="Segoe UI,Arial,sans-serif" font-size="8" font-weight="700">✓ FINAL REPORT</text>
+    <text x="795" y="379" fill="#a48a59" font-family="Segoe UI,Arial,sans-serif" font-size="7">quality approved</text>
+
+    <rect x="936" y="282" width="265" height="216" rx="12" fill="#fff" stroke="#dfe3e8"/>
+    <text x="954" y="307" fill="#262b32" font-family="Segoe UI,Arial,sans-serif" font-size="11" font-weight="700">Inference slots</text>
+    <text x="1179" y="307" text-anchor="end" fill="#269166" font-family="Segoe UI,Arial,sans-serif" font-size="8" font-weight="700">4 ACTIVE</text>
+    <g font-family="Segoe UI,Arial,sans-serif">
+      <rect x="954" y="328" width="229" height="31" rx="8" fill="#eef9f5"/>
+      <rect x="954" y="328" width="4" height="31" rx="2" fill="#31a775"/>
+      <text x="970" y="347" fill="#287054" font-size="8" font-weight="700">S1</text>
+      <text x="998" y="347" fill="#4a5d55" font-size="8">Supervisor · responding</text>
+      <rect x="954" y="366" width="229" height="31" rx="8" fill="#f2f0ff"/>
+      <rect x="954" y="366" width="4" height="31" rx="2" fill="#8974e5"/>
+      <text x="970" y="385" fill="#6757bd" font-size="8" font-weight="700">S2</text>
+      <text x="998" y="385" fill="#575169" font-size="8">Code agent · 42 tok/s</text>
+      <rect x="954" y="404" width="229" height="31" rx="8" fill="#eef9f5"/>
+      <rect x="954" y="404" width="4" height="31" rx="2" fill="#31a775"/>
+      <text x="970" y="423" fill="#287054" font-size="8" font-weight="700">S3</text>
+      <text x="998" y="423" fill="#4a5d55" font-size="8">Audit agent · tool call</text>
+      <rect x="954" y="442" width="229" height="31" rx="8" fill="#fff7e8"/>
+      <rect x="954" y="442" width="4" height="31" rx="2" fill="#d9a743"/>
+      <text x="970" y="461" fill="#8f681c" font-size="8" font-weight="700">S4</text>
+      <text x="998" y="461" fill="#685d46" font-size="8">Research fork · reading</text>
+    </g>
+  </g>
+</svg>
