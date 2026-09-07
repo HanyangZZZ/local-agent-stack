@@ -265,7 +265,7 @@ impl TraceStore {
                 .count();
             summaries.push(summary_for(root, &projection, branch_count.max(1)));
         }
-        summaries.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
+        summaries.sort_by_key(|summary| std::cmp::Reverse(summary.updated_at));
         Ok(summaries)
     }
 

@@ -1,6 +1,6 @@
 import { mockIPC } from "@tauri-apps/api/mocks";
 
-import type { StackConfig, StackSnapshot, TraceEvent, TraceReplay, TraceSessionSummary } from "./types";
+import type { StackConfig, StackSnapshot, TraceEvent, TraceReplay, TraceSessionSummary } from "../types";
 
 const start = new Date("2026-09-01T19:41:54-04:00").getTime();
 const branch = {

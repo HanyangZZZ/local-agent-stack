@@ -18,6 +18,15 @@
     "test": "node --test"
   },
   "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/HanyangZZZ/local-agent-stack.git",
+    "directory": "packages/harness-companion"
+  },
+  "homepage": "https://github.com/HanyangZZZ/local-agent-stack/tree/main/packages/harness-companion#readme",
+  "bugs": {
+    "url": "https://github.com/HanyangZZZ/local-agent-stack/issues"
+  },
   "publishConfig": {
     "access": "public"
   },
@@ -34,4 +43,3 @@
     "node": ">=20"
   }
 }
-

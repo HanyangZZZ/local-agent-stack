@@ -904,7 +904,7 @@ impl StackSupervisor {
             })
             .collect();
         for (kind, _) in &exited {
-            children.remove(&kind);
+            children.remove(kind);
         }
         drop(children);
         let records = self.process_registry.records().await;

@@ -15,7 +15,7 @@
 - [x] NVIDIA driver and GPU diagnostics.
 - [x] Redacted diagnostic bundle export.
 - [x] Playable Ultra Trace reconstruction for model I/O, contexts, agents, workflows, queues, slots, and GPU telemetry.
-- [ ] Signed Windows installer.
+- [ ] Authenticode-signed Windows installer and binaries.
 
 ## 0.2 — Safe Harness configuration
 

@@ -1,8 +1,8 @@
-import "./styles.css";
-import "./trace-timeline-view.css";
+import "../styles.css";
+import "../trace-timeline-view.css";
 
 import { installTraceDevMock } from "./trace-dev-mock";
-import { TraceViewer } from "./trace-timeline-view";
+import { TraceViewer } from "../trace-timeline-view";
 
 installTraceDevMock();
 document.body.innerHTML = '<main><section id="trace-preview-root"></section></main>';

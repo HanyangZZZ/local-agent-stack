@@ -1,13 +1,28 @@
 {
   "name": "local-agent-stack",
   "version": "0.1.1-alpha.5.1",
+  "description": "A local-first desktop control plane for Ollama, DeepSeek Harness, and agent workflow observability.",
   "private": true,
   "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/HanyangZZZ/local-agent-stack.git"
+  },
+  "homepage": "https://github.com/HanyangZZZ/local-agent-stack#readme",
+  "bugs": {
+    "url": "https://github.com/HanyangZZZ/local-agent-stack/issues"
+  },
   "scripts": {
     "dev": "pnpm --filter @local-agent-stack/desktop tauri dev",
     "build": "pnpm --filter @local-agent-stack/desktop tauri build",
-    "check": "pnpm --filter @local-agent-stack/desktop check",
+    "check": "pnpm repo:check && pnpm --filter @local-agent-stack/desktop check",
+    "repo:check": "node scripts/verify-repository.mjs",
+    "format:check": "cargo fmt --all -- --check",
+    "lint": "cargo clippy --workspace --all-targets -- -D warnings",
     "test": "pnpm --filter @local-agent-stack/harness-companion test && cargo test --workspace"
+  },
+  "engines": {
+    "node": ">=22"
   },
   "packageManager": "pnpm@11.19.0"
 }

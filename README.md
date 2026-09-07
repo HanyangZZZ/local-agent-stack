@@ -1,5 +1,9 @@
 # Local Agent Stack
 
+[![Validate](https://github.com/HanyangZZZ/local-agent-stack/actions/workflows/validate.yml/badge.svg)](https://github.com/HanyangZZZ/local-agent-stack/actions/workflows/validate.yml)
+[![Release](https://img.shields.io/github/v/release/HanyangZZZ/local-agent-stack?include_prereleases)](https://github.com/HanyangZZZ/local-agent-stack/releases)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+
 Local Agent Stack is an open-source desktop control plane for local AI coding
 agents. It can discover separately installed runtimes or install verified,
 app-owned runtime releases without forking their upstream projects.
@@ -22,6 +26,16 @@ The initial Windows release manages:
 > [!IMPORTANT]
 > This repository is an early working foundation. Service control is deliberately
 > conservative: the application only stops processes it started itself.
+
+## Install
+
+Download the latest Windows installer from [GitHub Releases](https://github.com/HanyangZZZ/local-agent-stack/releases).
+This is alpha software: read the release notes, keep independent copies of
+important model and Harness configuration, and expect interfaces to change.
+
+The installer does not bundle models. Ollama and DeepSeek Harness can remain
+separately installed, or the application can manage verified runtime copies in
+its own application-data directory.
 
 ## Architecture
 
@@ -53,15 +67,34 @@ Prerequisites:
 
 - Windows 10/11 for the currently tested desktop target.
 - Rust stable with the MSVC toolchain.
-- Node.js 22 or newer and pnpm 10 or newer.
+- Node.js 22 or newer and pnpm 11.
 - Microsoft Edge WebView2 Runtime.
 
 ```powershell
 pnpm install
 pnpm check
-cargo test --workspace
+pnpm format:check
+pnpm lint
+pnpm test
 pnpm dev
 ```
+
+The repository is organized by ownership boundary:
+
+```text
+apps/desktop/                 Tauri desktop application and web UI
+crates/local-stack-core/      Runtime, lifecycle, configuration and trace logic
+packages/harness-companion/   Optional read-only Harness integration
+manifests/                    Release-controlled runtime compatibility data
+schemas/                      Public JSON schemas
+scripts/                      Repository and local launch utilities
+docs/                         Architecture, roadmap and release documentation
+updater/                      Public updater key and signed release metadata
+```
+
+`pnpm check` verifies release-version/key consistency, manifest invariants,
+tracked-file hygiene and TypeScript. See [CONTRIBUTING.md](CONTRIBUTING.md) for
+the full contribution workflow.
 
 To inspect the current machine without opening the desktop UI:
 
@@ -197,3 +230,10 @@ SmartScreen publisher identity.
 
 Apache-2.0. Local Agent Stack is free to use, modify and redistribute. Ollama,
 DeepSeek Harness and downloaded models remain governed by their own licenses.
+
+## Community and security
+
+Use [GitHub Issues](https://github.com/HanyangZZZ/local-agent-stack/issues) for
+reproducible bugs and focused feature proposals. Read [CONTRIBUTING.md](CONTRIBUTING.md)
+and [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) before contributing. Report
+security vulnerabilities privately as described in [SECURITY.md](SECURITY.md).
