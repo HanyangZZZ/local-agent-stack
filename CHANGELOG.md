@@ -11,6 +11,7 @@ Changelog, and versions follow Semantic Versioning while the project is in alpha
   checks for release versions, updater keys, manifests and common secret types.
 - Aligned the published JSON schemas with the runtime configuration and
   compatibility manifest.
+- Updated GitHub Actions to runtimes that do not depend on deprecated Node 20.
 
 ### Fixed
 
